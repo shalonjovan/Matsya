@@ -1,0 +1,699 @@
+{
+  "kml_path": "/home/cac/Storage/coding/projects/matsya/c4907fed-934b-4342-a3f4-74226853719d.kml",
+  "output_inp": "/home/cac/Storage/coding/projects/matsya/test/SWMM/input/matsya_bbox_320.inp",
+  "filter": {
+    "ward": null,
+    "bbox": [
+      80.15,
+      13.09,
+      80.17,
+      13.13
+    ]
+  },
+  "stats": {
+    "num_drains_input": 320,
+    "num_junctions": 315,
+    "num_outfalls": 237,
+    "num_conduits": 335,
+    "num_clusters": 537,
+    "snap_tol": 5.0,
+    "adverse_slopes": 25
+  },
+  "assumptions": {
+    "crs": "EPSG:4326 \u2192 EPSG:32644 (UTM44N) for length, snap, and elevation handling",
+    "snap_tolerance_m": 5.0,
+    "manning": "0.014 concrete (default), 0.017 brick, else 0.014; see code manning_for_material()",
+    "cross_section": "RECT_OPEN, Geom1=depth (DRAIN_DEP), Geom2=width (DRAIN_WID), fallback 0.5x0.5 if zero",
+    "slope": "from invert elevations (INVERT_SP/EP); if missing/outlier (>100 or <-5) imputed from nearest known junction with 0.001 slope",
+    "subcatchments": "0.5 ha per junction, 70% imperv, width 50m, slope 0.5%, Horton infiltration 3.0/0.5 mm/hr",
+    "rainfall": "synthetic intensity 50.0 mm/hr for 1.0 hr via RG1/Timeseries TS1",
+    "junction_maxDepth": "DRAIN_DEP +0.3 m freeboard",
+    "outfall_logic": "nodes with outgoing==0 and incoming>0 \u2192 outfall; multi-inlet outfalls split with dummy 10m conduit"
+  },
+  "warnings": {
+    "total_warnings": 70,
+    "sample_warnings": [
+      {
+        "objectid": 1,
+        "warnings": [
+          "len mismatch drain_len 370.8 vs computed 239.0"
+        ]
+      },
+      {
+        "objectid": 4,
+        "warnings": [
+          "len mismatch drain_len 527.4 vs computed 678.6"
+        ]
+      },
+      {
+        "objectid": 11,
+        "warnings": [
+          "len mismatch drain_len 273.4 vs computed 373.8"
+        ]
+      },
+      {
+        "objectid": 14,
+        "warnings": [
+          "len mismatch drain_len 373.8 vs computed 467.5"
+        ]
+      },
+      {
+        "objectid": 53,
+        "warnings": [
+          "len mismatch drain_len 115.1 vs computed 38.8"
+        ]
+      },
+      {
+        "objectid": 90,
+        "warnings": [
+          "len mismatch drain_len 465.6 vs computed 396.6"
+        ]
+      },
+      {
+        "objectid": 91,
+        "warnings": [
+          "len mismatch drain_len 396.6 vs computed 465.6"
+        ]
+      },
+      {
+        "objectid": 101,
+        "warnings": [
+          "len mismatch drain_len 182.6 vs computed 101.2"
+        ]
+      },
+      {
+        "objectid": 120,
+        "warnings": [
+          "len mismatch drain_len 171.6 vs computed 304.4"
+        ]
+      },
+      {
+        "objectid": 121,
+        "warnings": [
+          "len mismatch drain_len 304.4 vs computed 111.1"
+        ]
+      },
+      {
+        "objectid": 122,
+        "warnings": [
+          "len mismatch drain_len 130.6 vs computed 60.5"
+        ]
+      },
+      {
+        "objectid": 123,
+        "warnings": [
+          "len mismatch drain_len 310.2 vs computed 193.7"
+        ]
+      },
+      {
+        "objectid": 124,
+        "warnings": [
+          "len mismatch drain_len 194.1 vs computed 321.0"
+        ]
+      },
+      {
+        "objectid": 128,
+        "warnings": [
+          "len mismatch drain_len 322.5 vs computed 194.1"
+        ]
+      },
+      {
+        "objectid": 130,
+        "warnings": [
+          "len mismatch drain_len 390.3 vs computed 265.9"
+        ]
+      },
+      {
+        "objectid": 154,
+        "warnings": [
+          "len mismatch drain_len 344.5 vs computed 247.9"
+        ]
+      },
+      {
+        "objectid": 155,
+        "warnings": [
+          "len mismatch drain_len 224.9 vs computed 317.0"
+        ]
+      },
+      {
+        "objectid": 156,
+        "warnings": [
+          "len mismatch drain_len 311.4 vs computed 145.3"
+        ]
+      },
+      {
+        "objectid": 157,
+        "warnings": [
+          "len mismatch drain_len 130.6 vs computed 214.7"
+        ]
+      },
+      {
+        "objectid": 160,
+        "warnings": [
+          "len mismatch drain_len 390.3 vs computed 133.3"
+        ]
+      }
+    ],
+    "adverse_slopes_count": 25,
+    "adverse_samples": [
+      {
+        "id": "C00002",
+        "objectid": 2,
+        "from_node": "J0002",
+        "to_node": "J0003",
+        "length": 131.78824023955778,
+        "length_computed": 131.78824023955778,
+        "length_drain_len": 131.78,
+        "length_shape_len": 131.785061398,
+        "roughness": 0.014,
+        "width": 0.32,
+        "depth": 0.32,
+        "slope_invert": 0.011427423245522303,
+        "slope_junc": -0.0031869307856038282,
+        "adverse": true,
+        "coords_lonlat": [
+          [
+            80.1583796,
+            13.1145863
+          ],
+          [
+            80.1583797,
+            13.1145895
+          ],
+          [
+            80.158413,
+            13.1146893
+          ],
+          [
+            80.1584592,
+            13.1147889
+          ],
+          [
+            80.1585527,
+            13.115005
+          ],
+          [
+            80.1586284,
+            13.1152117
+          ],
+          [
+            80.158714,
+            13.1154926
+          ],
+          [
+            80.1587631,
+            13.1157139
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "1st Street-1",
+        "mat": "Concrete/Concrete Wall"
+      },
+      {
+        "id": "C00015",
+        "objectid": 15,
+        "from_node": "J0025",
+        "to_node": "J0026",
+        "length": 207.46899854076037,
+        "length_computed": 207.46899854076037,
+        "length_drain_len": 207.474,
+        "length_shape_len": 207.473987458,
+        "roughness": 0.014,
+        "width": 0.79,
+        "depth": 0.79,
+        "slope_invert": 0.0008097595360349462,
+        "slope_junc": -0.011495693413353181,
+        "adverse": true,
+        "coords_lonlat": [
+          [
+            80.1589387,
+            13.1163635
+          ],
+          [
+            80.1588935,
+            13.1163678
+          ],
+          [
+            80.1588977,
+            13.116471
+          ],
+          [
+            80.1589395,
+            13.1166645
+          ],
+          [
+            80.1590077,
+            13.1169697
+          ],
+          [
+            80.1590895,
+            13.1173426
+          ],
+          [
+            80.1591409,
+            13.1175569
+          ],
+          [
+            80.159146,
+            13.1175653
+          ],
+          [
+            80.1591527,
+            13.1175772
+          ],
+          [
+            80.1592278,
+            13.1179338
+          ],
+          [
+            80.1592841,
+            13.1181451
+          ],
+          [
+            80.1592848,
+            13.1181555
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "Prithvipakkam Road Cross Street LHS",
+        "mat": "Concrete/Concrete Wall"
+      },
+      {
+        "id": "C00026",
+        "objectid": 26,
+        "from_node": "J0045",
+        "to_node": "J0046",
+        "length": 68.68466668734031,
+        "length_computed": 68.68466668734031,
+        "length_drain_len": 115.149,
+        "length_shape_len": 68.6870464435,
+        "roughness": 0.014,
+        "width": 0.59,
+        "depth": 0.59,
+        "slope_invert": 0.0028827394751919674,
+        "slope_junc": -0.003115688119651952,
+        "adverse": true,
+        "coords_lonlat": [
+          [
+            80.1603354,
+            13.1167435
+          ],
+          [
+            80.1603298,
+            13.1167392
+          ],
+          [
+            80.1601646,
+            13.1161548
+          ],
+          [
+            80.160162,
+            13.1161476
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "Maya Cross Street",
+        "mat": "Concrete/Concrete Wall"
+      },
+      {
+        "id": "C00034",
+        "objectid": 34,
+        "from_node": "J0058",
+        "to_node": "J0059",
+        "length": 1281.40314510147,
+        "length_computed": 1281.40314510147,
+        "length_drain_len": 1258.741,
+        "length_shape_len": 1281.40025284,
+        "roughness": 0.014,
+        "width": 1.16,
+        "depth": 1.16,
+        "slope_invert": 0.0021648144150452644,
+        "slope_junc": -0.001054313004587653,
+        "adverse": true,
+        "coords_lonlat": [
+          [
+            80.1662702,
+            13.1215804
+          ],
+          [
+            80.1665721,
+            13.1222285
+          ],
+          [
+            80.1669719,
+            13.1230548
+          ],
+          [
+            80.1673112,
+            13.123748
+          ],
+          [
+            80.1677533,
+            13.1246485
+          ],
+          [
+            80.1681334,
+            13.1254254
+          ],
+          [
+            80.1686631,
+            13.1265073
+          ],
+          [
+            80.1694187,
+            13.1280485
+          ],
+          [
+            80.1700522,
+            13.129341
+          ],
+          [
+            80.1704468,
+            13.1301357
+          ],
+          [
+            80.1707399,
+            13.1306816
+          ],
+          [
+            80.1710648,
+            13.1312505
+          ],
+          [
+            80.1713908,
+            13.1317797
+          ],
+          [
+            80.1715108,
+            13.1319594
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "Pattaraiwalkam Service Road",
+        "mat": "Concrete/Concrete Wall"
+      },
+      {
+        "id": "C00045",
+        "objectid": 45,
+        "from_node": "J0064",
+        "to_node": "J0079",
+        "length": 121.45556842288214,
+        "length_computed": 121.45556842288214,
+        "length_drain_len": 121.459,
+        "length_shape_len": 121.459347521,
+        "roughness": 0.014,
+        "width": 0.36,
+        "depth": 0.36,
+        "slope_invert": 0.015520078860747116,
+        "slope_junc": -0.007294848737730491,
+        "adverse": true,
+        "coords_lonlat": [
+          [
+            80.1628043,
+            13.1222283
+          ],
+          [
+            80.162804,
+            13.1222409
+          ],
+          [
+            80.1628184,
+            13.1222656
+          ],
+          [
+            80.1628277,
+            13.1222784
+          ],
+          [
+            80.1628926,
+            13.1225629
+          ],
+          [
+            80.1630079,
+            13.1230177
+          ],
+          [
+            80.1630793,
+            13.1231483
+          ],
+          [
+            80.1631169,
+            13.123238
+          ],
+          [
+            80.1631175,
+            13.1232741
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "Karukku Cross Street-2 RHS",
+        "mat": "Concrete/Concrete Wall"
+      }
+    ],
+    "missing_elevation_imputed": 16
+  },
+  "detailed": {
+    "num_drains": 320,
+    "conduits_sample": [
+      {
+        "id": "C00001",
+        "objectid": 1,
+        "from_node": "J0001",
+        "to_node": "J0002",
+        "length": 239.02948467306894,
+        "length_computed": 239.02948467306894,
+        "length_drain_len": 370.817,
+        "length_shape_len": 239.031716421,
+        "roughness": 0.014,
+        "width": 0.51,
+        "depth": 0.51,
+        "slope_invert": 0.0017571054072030162,
+        "slope_junc": 0.0017571054072030162,
+        "adverse": false,
+        "coords_lonlat": [
+          [
+            80.1605774,
+            13.1147584
+          ],
+          [
+            80.1605598,
+            13.114756
+          ],
+          [
+            80.1601845,
+            13.1147245
+          ],
+          [
+            80.1600836,
+            13.1147155
+          ],
+          [
+            80.1598041,
+            13.1146922
+          ],
+          [
+            80.1593083,
+            13.1146468
+          ],
+          [
+            80.1589137,
+            13.114619
+          ],
+          [
+            80.1586562,
+            13.1146004
+          ],
+          [
+            80.1583796,
+            13.1145863
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "1st Street-2",
+        "mat": "Concrete/Concrete Wall"
+      },
+      {
+        "id": "C00002",
+        "objectid": 2,
+        "from_node": "J0002",
+        "to_node": "J0003",
+        "length": 131.78824023955778,
+        "length_computed": 131.78824023955778,
+        "length_drain_len": 131.78,
+        "length_shape_len": 131.785061398,
+        "roughness": 0.014,
+        "width": 0.32,
+        "depth": 0.32,
+        "slope_invert": 0.011427423245522303,
+        "slope_junc": -0.0031869307856038282,
+        "adverse": true,
+        "coords_lonlat": [
+          [
+            80.1583796,
+            13.1145863
+          ],
+          [
+            80.1583797,
+            13.1145895
+          ],
+          [
+            80.158413,
+            13.1146893
+          ],
+          [
+            80.1584592,
+            13.1147889
+          ],
+          [
+            80.1585527,
+            13.115005
+          ],
+          [
+            80.1586284,
+            13.1152117
+          ],
+          [
+            80.158714,
+            13.1154926
+          ],
+          [
+            80.1587631,
+            13.1157139
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "1st Street-1",
+        "mat": "Concrete/Concrete Wall"
+      },
+      {
+        "id": "C00003",
+        "objectid": 3,
+        "from_node": "J0001",
+        "to_node": "J0004",
+        "length": 290.9001189562929,
+        "length_computed": 290.9001189562929,
+        "length_drain_len": 290.892,
+        "length_shape_len": 290.892464691,
+        "roughness": 0.014,
+        "width": 0.41,
+        "depth": 0.41,
+        "slope_invert": 0.0036782384408744965,
+        "slope_junc": 0.001705052585676403,
+        "adverse": false,
+        "coords_lonlat": [
+          [
+            80.1605774,
+            13.1147584
+          ],
+          [
+            80.1605903,
+            13.1147591
+          ],
+          [
+            80.1605934,
+            13.1147978
+          ],
+          [
+            80.1605924,
+            13.1148005
+          ],
+          [
+            80.1606044,
+            13.114894
+          ],
+          [
+            80.1606063,
+            13.1149107
+          ],
+          [
+            80.1606548,
+            13.1152963
+          ],
+          [
+            80.160615,
+            13.1154454
+          ],
+          [
+            80.1606076,
+            13.1154455
+          ],
+          [
+            80.1602477,
+            13.1155345
+          ],
+          [
+            80.1596672,
+            13.1156868
+          ],
+          [
+            80.1593542,
+            13.1157432
+          ],
+          [
+            80.1589792,
+            13.1158045
+          ],
+          [
+            80.1588414,
+            13.1158315
+          ],
+          [
+            80.1588372,
+            13.1158414
+          ],
+          [
+            80.1588471,
+            13.1158919
+          ],
+          [
+            80.158861,
+            13.1159684
+          ]
+        ],
+        "ward": "N082",
+        "st_name": "2nd Street",
+        "mat": "Concrete/Concrete Wall"
+      }
+    ],
+    "junctions_sample": {
+      "J0001": {
+        "lon": 80.1605774,
+        "lat": 13.1147584,
+        "x": 409010.93648849905,
+        "y": 1449977.7217533435,
+        "elevation": 13.096,
+        "max_depth": 0.51,
+        "member_endpoints": [
+          0,
+          4
+        ],
+        "degree": 2,
+        "inverts": [
+          13.096,
+          13.67
+        ],
+        "elevation_imputed": false,
+        "max_depth_swmm": 0.81
+      },
+      "J0002": {
+        "lon": 80.1583796,
+        "lat": 13.1145863,
+        "x": 408772.6274499402,
+        "y": 1449959.4809278063,
+        "elevation": 12.676,
+        "max_depth": 0.51,
+        "member_endpoints": [
+          1,
+          2
+        ],
+        "degree": 2,
+        "inverts": [
+          12.676,
+          14.602
+        ],
+        "elevation_imputed": false,
+        "max_depth_swmm": 0.81
+      }
+    }
+  }
+}
