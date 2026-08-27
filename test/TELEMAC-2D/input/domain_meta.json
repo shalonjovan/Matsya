@@ -1,0 +1,25 @@
+{
+  "bbox": [
+    80.155,
+    13.11,
+    80.175,
+    13.13
+  ],
+  "rows": 72,
+  "cols": 72,
+  "dx_deg": 0.00027777799999999865,
+  "dy_deg": 0.0002777780000000001,
+  "dx_m": 30.8,
+  "dy_m": 30.8,
+  "transform": [
+    0.00027777799999999865,
+    0.0,
+    80.1549963356,
+    0.0,
+    -0.0002777780000000001,
+    13.1299942644
+  ],
+  "crs": "EPSG:4326",
+  "crs_utm": "EPSG:32644",
+  "dem_file": "/home/cac/Storage/coding/projects/matsya/test/TELEMAC-2D/input/dem_clipped.tif"
+}

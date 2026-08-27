@@ -163,8 +163,9 @@ let selectedId=null, selectedType=null;
 
 // ---------- maps ----------
 map = L.map('map',{zoomControl:true}).setView([13.08,80.20],13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap'}).addTo(map);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{opacity:0.35, maxZoom:19}).addTo(map);
+// Use Carto Light (OSM volunteer servers now block missing Referer 403) + Esri for reliability
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:19, attribution:'&copy; OpenStreetMap & CARTO'}).addTo(map);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{opacity:0.35, maxZoom:19, attribution:'Esri'}).addTo(map);
 conduitLayer = L.layerGroup().addTo(map);
 nodeLayer = L.layerGroup().addTo(map);
 outfallLayer = L.layerGroup().addTo(map);

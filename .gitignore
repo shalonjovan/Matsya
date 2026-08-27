@@ -1,0 +1,7 @@
+# Context files (keep local, not pushed)
+MATSYA_CONTEXT.md
+MATSYA_project_context.md
+
+# Large raw data (optional, not pushed)
+c4907fed-934b-4342-a3f4-74226853719d.kml
+assets/CartoDEM_30m_Chennai_EGM96_MSL.tif
