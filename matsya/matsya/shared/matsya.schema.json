@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MatsyaSimulation",
+  "type": "object",
+  "required": ["name", "area", "rainfall"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Auto-generated UUID"
+    },
+    "name": {
+      "type": "string",
+      "description": "Simulation name"
+    },
+    "area": {
+      "type": "object",
+      "required": ["bbox"],
+      "properties": {
+        "bbox": {
+          "type": "array",
+          "items": { "type": "number" },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "[minLon, minLat, maxLon, maxLat] with minLon < maxLon and minLat < maxLat",
+          "examples": [[80.15, 13.08, 80.20, 13.13]]
+        },
+        "crs": {
+          "type": "string",
+          "default": "EPSG:4326"
+        },
+        "polygon": {
+          "type": ["object", "null"],
+          "description": "Optional GeoJSON polygon"
+        }
+      }
+    },
+    "terrain": {
+      "type": ["object", "null"],
+      "properties": {
+        "demUri": { "type": ["string", "null"] },
+        "res": { "type": ["number", "null"] }
+      }
+    },
+    "rainfall": {
+      "type": "object",
+      "required": ["rateMmHr", "durationHr"],
+      "properties": {
+        "rateMmHr": { "type": "number", "description": "Rainfall rate mm/hr" },
+        "durationHr": { "type": "number", "description": "Duration hours" }
+      }
+    },
+    "drainage": {
+      "type": ["object", "null"],
+      "properties": {
+        "uri": { "type": ["string", "null"] },
+        "conduitCount": { "type": ["integer", "null"] }
+      }
+    },
+    "rivers": { "type": ["object", "null", "array"] },
+    "canals": { "type": ["object", "null", "array"] },
+    "waterBodies": { "type": ["object", "null", "array"] },
+    "roads": { "type": ["object", "null", "array"] },
+    "buildings": { "type": ["object", "null", "array"] },
+    "landCover": { "type": ["object", "null"] },
+    "boundaries": { "type": ["object", "null"] },
+    "parameters": {
+      "type": ["object", "null"],
+      "properties": {
+        "cfl": { "type": ["number", "null"] },
+        "dt": { "type": ["number", "null"] },
+        "theta": { "type": ["number", "null"] }
+      }
+    },
+    "results": {
+      "type": ["object", "null"]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "created": { "type": "string", "format": "date-time" },
+        "updated": { "type": "string", "format": "date-time" },
+        "status": {
+          "$ref": "#/definitions/StatusEnum"
+        }
+      }
+    },
+    "status": {
+      "$ref": "#/definitions/StatusEnum",
+      "default": "Ready"
+    }
+  },
+  "definitions": {
+    "StatusEnum": {
+      "type": "string",
+      "enum": ["Ready", "Running", "Completed", "Incomplete", "Error", "Live", "Offline"]
+    }
+  }
+}
