@@ -1,7 +1,12 @@
-from fastapi import APIRouter, HTTPException, Body, status
+from fastapi import APIRouter, HTTPException, Body, status, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+import io
+import uuid
+from datetime import datetime, timezone
 
 from app.services.simulation_store import store
+from app.services.package_service import create_matsya, read_matsya
 
 router = APIRouter(prefix="/api/simulations", tags=["simulations"])
 
@@ -37,10 +42,56 @@ def create_simulation(payload: dict = Body(...)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# Import stub must be before {sim_id} routes to avoid shadowing
-@router.post("/import")
-def import_stub():
-    raise HTTPException(status_code=501, detail="Not implemented")
+# Import must be before {sim_id} routes to avoid shadowing
+@router.post("/import", status_code=status.HTTP_201_CREATED)
+async def import_simulation(file: UploadFile = File(...)):
+    try:
+        data = await file.read()
+        sim = read_matsya(data)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Create new simulation with new id (do not reuse original id)
+    try:
+        payload = sim.model_dump(mode="python")
+        new_id = str(uuid.uuid4())
+        payload["id"] = new_id
+        now = datetime.now(timezone.utc)
+        if "metadata" not in payload or payload["metadata"] is None:
+            payload["metadata"] = {}
+        payload["metadata"]["created"] = now
+        payload["metadata"]["updated"] = now
+        # Ensure top-level status consistent if needed, keep as is
+        new_sim = store.create(payload)
+        return new_sim.model_dump(mode="json")
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=_validation_error_detail(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{sim_id}/export")
+def export_simulation(sim_id: str):
+    try:
+        sim = store.get(sim_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Simulation not found")
+
+    try:
+        data = create_matsya(sim)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    filename = f"{sim.name}.matsya"
+    # Sanitize filename for header (basic)
+    filename = filename.replace('"', "_").replace("\n", "_").replace("\r", "_")
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.get("/{sim_id}")
@@ -88,9 +139,3 @@ def duplicate_simulation(sim_id: str, payload: dict = Body(default={})):
         raise HTTPException(status_code=422, detail=_validation_error_detail(e))
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
-# Export stub for Task 1.2
-@router.post("/{sim_id}/export")
-def export_stub(sim_id: str):
-    raise HTTPException(status_code=501, detail="Not implemented")
