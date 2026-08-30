@@ -4,5 +4,4 @@ def test_health():
     c = TestClient(app)
     r = c.get("/api/health")
     assert r.status_code == 200
-    assert r.json()["status"] == "ok"
-    assert "engine" in r.json()
+    assert r.json() == {"status":"ok","version":"0.1.0","engine":"anuga-mock"}
