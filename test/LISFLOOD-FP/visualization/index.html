@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MATSYA test-2.0 — Big Square Click-Inspect</title>
+<title>MATSYA LISFLOOD-FP — Big Square Click-Inspect</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -39,7 +39,7 @@ canvas{max-height:160px}
 <body>
 <header>
 <div>
-<h1><span>MATSYA</span> test-2.0 — Big Square Click-Inspect</h1>
+<h1><span>MATSYA</span> LISFLOOD-FP — Big Square Click-Inspect</h1>
 <div class="sub">180×180 @30m (5.4×5.5 km =29.7 km²) 80.15-80.20E,13.08-13.13N • CartoDEM 30m • 446 roads • 956 drains • 50 mm/hr×1 hr • Click map → depth/vel/dir live</div>
 </div>
 <div class="controls">
@@ -107,43 +107,30 @@ function depthToColor(d){
 }
 
 async function load(){
- try{
-  const res=await fetch('snapshots_web.json');
-  if(!res.ok) throw new Error('snapshots fetch '+res.status);
-  const web=await res.json();
-  times=web.times;
-  const depthScale=web.depth_scale, velScale=web.vel_scale, velOff=web.vel_offset;
-  for(let i=0;i<web.snapshots_b64.length;i++){
-   const dec=base64ToUint8(web.snapshots_b64[i]);
-   const infl=pako.inflate(dec);
-   const arr=npFromBytes(infl, web.rows, web.cols, depthScale);
-   snapshots.push(arr);
-   const decU=base64ToUint8(web.vel_u_b64[i]);
-   const inflU=pako.inflate(decU);
-   velU.push(npFromBytes(inflU, web.rows, web.cols, velScale, velOff));
-   const decV=base64ToUint8(web.vel_v_b64[i]);
-   const inflV=pako.inflate(decV);
-   velV.push(npFromBytes(inflV, web.rows, web.cols, velScale, velOff));
-  }
-  console.log('Loaded',snapshots.length, 'snapshots', ROWS, COLS);
- }catch(e){
-  console.error('Snapshots load failed, using static fallback',e);
-  document.getElementById('clickInfo').innerHTML+='<br><span style="color:#f87171">Live snapshots failed to load (use http:// not file://). Showing static final depth. Run <code>python -m http.server 8002</code> in this folder.</span>';
+ const res=await fetch('snapshots_web.json');
+ const web=await res.json();
+ times=web.times;
+ const depthScale=web.depth_scale, velScale=web.vel_scale, velOff=web.vel_offset;
+ // decode each snapshot (base64+zlib)
+ for(let i=0;i<web.snapshots_b64.length;i++){
+  const dec=base64ToUint8(web.snapshots_b64[i]);
+  const infl=pako.inflate(dec);
+  const arr=npFromBytes(infl, web.rows, web.cols, depthScale);
+  snapshots.push(arr);
+  const decU=base64ToUint8(web.vel_u_b64[i]);
+  const inflU=pako.inflate(decU);
+  velU.push(npFromBytes(inflU, web.rows, web.cols, velScale, velOff));
+  const decV=base64ToUint8(web.vel_v_b64[i]);
+  const inflV=pako.inflate(decV);
+  velV.push(npFromBytes(inflV, web.rows, web.cols, velScale, velOff));
  }
- try{
-  const sres=await fetch('../output/V0/stats.json').then(r=>r.json());
-  stats=sres;
- }catch(e){
-  console.error('Stats load failed',e);
-  // fallback stats from times
-  stats=times.map((t,i)=>({t:t, max_h:0, flooded:0, vol:0, max_vel:0}));
- }
+ console.log('Loaded',snapshots.length, 'snapshots', ROWS, COLS);
+ // stats
+ const sres=await fetch('../output/V0/stats.json').then(r=>r.json());
+ stats=sres;
  initMap();
  initCharts();
- // ensure slider max matches snapshots or stats
- const maxIdx=(snapshots.length? snapshots.length: stats.length)-1;
- document.getElementById('slider').max=maxIdx;
- update(Math.min(12,maxIdx));
+ update(12);
 }
 
 function npFromBytes(bytes, rows, cols, scale, offset=0){
@@ -160,14 +147,11 @@ function npFromBytes(bytes, rows, cols, scale, offset=0){
  return arr;
 }
 
-// Map — drains as vectors, heatmap as live canvas, no static plot image
+// Map
 function initMap(){
  const bbox=[[BBOX[1],BBOX[0]],[BBOX[3],BBOX[2]]];
- map=L.map('map',{zoomControl:true}).fitBounds(bbox);
- // Free tiles only — OSM France HOT (no API key), Carto now needs key so we don't use it as primary
- L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OSM France HOT'}).addTo(map);
- // Ensure map gets size even if flex fails
- setTimeout(()=>map.invalidateSize(), 200);
+ map=L.map('map').fitBounds(bbox);
+ L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',{maxZoom:19, attribution:'&copy; OSM France'}).addTo(map);
  // Drains/roads overlay
  Promise.all([
   fetch('../../test-2.0/input/../input/roads_clipped.geojson').catch(()=>fetch('../input/roads_clipped.geojson')).then(r=>r.json()).catch(()=>null),
@@ -194,7 +178,7 @@ function initMap(){
 }
 
 function renderDepth(idx){
- if(!snapshots[idx] || !ctx || !canvasOverlay) return;
+ if(!snapshots[idx]) return;
  const arr=snapshots[idx];
  const img=ctx.createImageData(COLS, ROWS);
  for(let r=0;r<ROWS;r++){

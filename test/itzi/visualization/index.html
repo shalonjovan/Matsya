@@ -1,0 +1,27 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Itzi NC Tutorial — Visualisation</title>
+<style>body{font-family:system-ui;background:#0f172a;color:#e2e8f0;margin:0;padding:20px} h1{color:#38bdf8} .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px} img{width:100%;border:1px solid #334155;border-radius:8px} a{color:#38bdf8} pre{background:#1e293b;padding:12px;border-radius:8px;overflow:auto}</style></head><body>
+<h1>Itzi — North Carolina Tutorial (GRASS + Itzi)</h1>
+<p>Run inside <b>osgeo/grass-gis 8.5.0</b> Docker via <code>grass --tmp-project EPSG:3358 --exec</code>. Steps from <code>docs/tutorial.rst</code> + <code>tests/grass/test_tutorial.py</code>. <b>Duration 00:30:00, record 00:05:00 (6 steps), rain 100 mm/hr, n=0.05, CFL 0.5</b>. Watershed 140×150 @5m (700×750 m) — outlet 638888,220011. Elapsed 0:00:04.</p>
+<div class="grid"><div><h3>water_depth_max (00:30)</h3><img src="nc_depth_max.png"><p>max <b>1.66 m</b> mean 0.032 m flooded&gt;5cm 917/21000 (9.1%). See <code>nc_depth_max.tif</code> (84K Float32, EPSG:3358)</p></div><div><h3>Velocity max</h3><img src="nc_v_max.png" onerror="this.style.display='none'"><p>from <code>nc_v_max.tif</code> — v 0–X m/s</p></div></div>
+<h3>Time steps 5 min interval</h3><img src="nc_timesteps.png" style="width:100%">
+<h3>How visualisation works in base Itzi (not web)</h3>
+<ul><li><b>Inside GRASS:</b> outputs are <code>Space-Time Raster Datasets (STRDS)</code> <code>nc_itzi_tutorial_water_depth_0001..0006</code> + <code>nc_itzi_tutorial_water_depth_max</code> inside GRASS DB. View with <code>g.gui.animation</code> → select STRDS → Play (see <code>docs/img/nc_itzi_tutorial.png</code>) or <code>d.rast nc_itzi_tutorial_water_depth_0004</code> + <code>r.colors</code>.</li>
+<li><b>Export for external:</b> <code>r.out.gdal input=nc_itzi_tutorial_water_depth_max output=/tmp/nc_depth_max.tif</code> (what we did) → open in QGIS / GDAL. Also <code>t.rast.list</code> to see times 300..1800 s.</li>
+<li><b>Stats:</b> <code>nc_itzi_tutorial.csv</code> (volume_error 0.12%→0% after CFL fix).</li>
+<li><b>We rendered</b> static PNGs via <code>matplotlib</code> from exported GeoTIFFs for quick view (no GRASS GUI needed). Full animation would be <code>g.gui.animation strds=nc_itzi_tutorial_water_depth</code> exported to mp4 via GUI.</li></ul>
+<h3>Stats file</h3><pre>simulation_time,average_timestep,timesteps,boundary_volume,rainfall_volume,infiltration_volume,inflow_volume,losses_volume,drainage_network_volume,domain_volume,volume_change,volume_error,percent_error
+0:00:00,-,0,0.000000,0.000000,-0.000000,0.000000,-0.000000,0.000000,0.000000,0.000000,0.000000,0.00%
+0:05:00,2.884615,104,-9.244499,2092.957031,-0.000000,0.000000,-0.000000,0.000000,2086.239258,2086.239258,2.555507,0.12%
+0:10:00,1.167315,257,-123.982880,2092.957031,-0.000000,0.000000,-0.000000,0.000000,4055.170898,1968.931641,0.000000,0.00%
+0:15:00,0.882353,340,-306.208527,2092.957031,-0.000000,0.000000,-0.000000,0.000000,5841.877930,1786.707031,0.000000,0.00%
+0:20:00,0.759494,395,-456.852570,2092.957031,-0.000000,0.000000,-0.000000,0.000000,7477.951172,1636.073242,0.000000,0.00%
+0:25:00,0.688073,436,-1823.857544,2092.957031,-0.000000,0.000000,-0.000000,0.000000,7747.005371,269.054199,0.000000,0.00%
+0:30:00,0.638298,470,-1914.228271,2092.957031,-0.000000,0.000000,-0.000000,0.000000,7925.687988,178.682617,0.000000,0.00%
+</pre>
+<h3>Files on host</h3><pre>/work/test/itzi/nc_depth_max.tif (84K, 140x150 @5m, EPSG:3358, max 1.657)
+/work/test/itzi/nc_v_max.tif
+/work/test/itzi/nc_itzi_tutorial_water_depth_0001..0006.tif (6 × 84K)
+/work/test/itzi/nc_itzi_tutorial.csv
+/work/test/itzi/visualization/nc_depth_max.png
+/work/test/itzi/visualization/nc_timesteps.png
+</pre><p><a href="nc_depth_max.png">Download max PNG</a> | <a href="nc_timesteps.png">Timesteps PNG</a></p></body></html>

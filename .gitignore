@@ -2,6 +2,31 @@
 MATSYA_CONTEXT.md
 MATSYA_project_context.md
 
+# PRD — do not commit or push (product requirements, private)
+prd*.md
+PRD*.md
+*prd*.md
+prd(2).md
+prds/
+
 # Large raw data (optional, not pushed)
 c4907fed-934b-4342-a3f4-74226853719d.kml
 assets/CartoDEM_30m_Chennai_EGM96_MSL.tif
+assets/chennai_waterbodies.kml
+assets/drains.kml
+
+# Itzi — external clone and generated outputs (large, not needed in repo)
+test/itzi/itzi/
+test/itzi/nc*.tif
+test/itzi/nc*.csv
+test/itzi/run_*.sh
+
+# keep chennai_test inputs but ignore generated grassdb
+test/itzi/chennai_test/grassdb/
+
+# OS / editor
+.DS_Store
+*.pyc
+__pycache__/
+.vscode/
+.idea/

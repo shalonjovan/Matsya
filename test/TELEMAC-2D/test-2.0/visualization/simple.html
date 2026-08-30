@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MATSYA test-2.0 Simple View</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:16px}
+h1{font-size:18px}h1 span{color:#38bdf8}.sub{font-size:11px;color:#94a3b8;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;max-width:900px;margin:auto}
+.card{background:#1e293b;border:1px solid #334155;border-radius:8px;padding:12px}
+.card img{width:100%;border-radius:4px;background:white}
+.card h3{font-size:14px;color:#38bdf8;margin:8px 0}
+.info{font-size:12px;color:#94a3b8;line-height:1.5}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}
+.kpi div{background:#1e293b;padding:8px;border-radius:6px;text-align:center;border:1px solid #334155}
+.kpi .val{font-size:16px;font-weight:700;color:#38bdf8}
+a{color:#38bdf8}
+</style>
+</head>
+<body>
+<h1><span>MATSYA</span> test-2.0 — Big Square Simple View (no map needed)</h1>
+<div class="sub">180×180 @30m (5.4×5.5 km =29.7 km²) 80.15-80.20E,13.08-13.13N • CartoDEM 30m • 446 roads • 956 drains • 50 mm/hr×1 hr • If live map is blank, this static view always works</div>
+
+<div class="card">
+<h3>Final Depth (06:00) — 1.99 m max, 15.5% flooded</h3>
+<img src="depth_final.png" alt="depth final">
+<div class="info">Left: depth heatmap (viridis 0-1.5m) for big square. Right: DEM+ flood. This is static final state. For live animation (00:00→06:00) use <a href="index.html">index.html via http server</a> (needs <code>python -m http.server 8002</code>).</div>
+</div>
+
+<div class="card">
+<h3>Time Series — max depth & flooded %</h3>
+<img src="timeseries.png" alt="timeseries">
+<div class="info">Blue max depth, green flooded %. Rain 50 mm/hr 0-1hr (gray). Peak 1.99 m at 06:00, flooded 15.5% max 5352 cells.</div>
+</div>
+
+<div class="kpi">
+<div><div class="val">1.99 m</div>max depth</div>
+<div><div class="val">15.5%</div>flooded</div>
+<div><div class="val">1.37M m³</div>volume</div>
+<div><div class="val">0.11 m/s</div>max vel</div>
+</div>
+
+<div class="card">
+<h3>Why map was blank?</h3>
+<div class="info">
+The live <code>index.html</code> needs <code>http://localhost:8002</code> (not <code>file://</code> double-click) because it <code>fetch('snapshots_web.json')</code> 1.3 MB — browsers block <code>file:// fetch</code> (CORS). Also tiles <code>tile.openstreetmap.org 403 Referer</code> were blocked before; now uses <code>tile.openstreetmap.fr/hot</code> (no key).<br><br>
+<b>Fix:</b> <code>cd test/TELEMAC-2D/test-2.0/visualization && python -m http.server 8002</code> → <code>http://localhost:8002</code> → hard reload <code>Ctrl+Shift+R</code>. If still blank, open <code>simple.html</code> (this file) which works via <code>file://</code>.
+</div>
+</div>
+
+<p style="font-size:11px;color:#64748b;margin-top:12px">Static PNGs: <code>depth_final.png</code> <code>timeseries.png</code> in this folder — no server needed. Live needs server + <code>snapshots_web.json</code> + <code>pako</code>.</p>
+</body>
+</html>
