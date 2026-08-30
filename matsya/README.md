@@ -1,13 +1,13 @@
-# MATSYA
 
-Final project implementation goes here.
+# MATSYA — matsya/matsya
 
-This folder will contain the production ANUGA-coupled 2D surface + SWMM drainage platform with Minecraft-style world management and live monitoring.
-
-Structure planned:
-- `src/` — app code (ANUGA engine, GIS, UI)
-- `worlds/` — simulations (geographic worlds)
-- `assets/` — shared assets
-- `docs/` — docs
-
-Currently empty — test prototypes live in `test/` (SWMM, TELEMAC-2D, LISFLOOD-FP, Itzi).
+Run:
+```
+# backend
+cd matsya/matsya/backend && pip install -r requirements.txt && uvicorn app.main:app --reload
+# frontend
+cd matsya/matsya/frontend && npm install && npm run dev
+# docker
+docker-compose up --build
+```
+Seed demo: Chennai big square 180×180 @30m seeded from test/TELEMAC-2D/test-2.0/input/dem_clipped.tif
