@@ -16,10 +16,12 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
   const [time, setTime] = useState(0)
   const [layers, setLayers] = useState<any>({ depth:{visible:true,opacity:0.8}, terrain:{visible:false}, drainage:{visible:true,opacity:0.6}, roads:{visible:true} })
   return (
-    <div className="flex flex-col h-[calc(100vh-60px)] gap-0">
-      <div className="flex flex-1 overflow-hidden border rounded-xl shadow">
-        <div className="flex-1 relative bg-slate-900">
-          <MapView simulation={simulation} layers={layers} time={time} onPointSelect={setSelectedPoint} />
+    <div className="flex flex-col h-[calc(100vh-64px)] gap-0">
+      <div className="flex flex-1 overflow-hidden border rounded-xl shadow min-h-0">
+        <div className="flex-1 relative bg-slate-900 min-h-0 min-w-0">
+          <div className="absolute inset-0">
+            <MapView simulation={simulation} layers={layers} time={time} onPointSelect={setSelectedPoint} />
+          </div>
           <div className="absolute top-2 left-2 z-[400] w-64">
             <SearchBar />
           </div>
@@ -27,7 +29,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
             <LiveStatus />
           </div>
         </div>
-        <div className="w-[360px] border-l bg-white flex flex-col overflow-auto">
+        <div className="w-[360px] shrink-0 border-l bg-white flex flex-col overflow-auto">
           <LayerPanel layers={layers} onChange={setLayers} />
           <PointInspector point={selectedPoint} />
           <AffectedAreas simulation={simulation} />
