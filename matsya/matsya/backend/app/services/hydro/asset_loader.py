@@ -1,11 +1,21 @@
 """Asset loader for 7 files in assets/ — validates counts, reprojects."""
 import pathlib
-import geopandas as gpd
-import pandas as pd
-from shapely.geometry import LineString, Polygon, Point
-from shapely.ops import transform
-import pyproj
-import rasterio
+try:
+    import geopandas as gpd
+    import pandas as pd
+    from shapely.geometry import LineString, Polygon, Point
+    from shapely.ops import transform
+    import pyproj
+    import rasterio
+    HAS_GDAL = True
+except ImportError as e:
+    gpd = None
+    pd = None
+    LineString = Polygon = Point = None
+    transform = None
+    pyproj = None
+    rasterio = None
+    HAS_GDAL = False
 
 # Expected counts (min) — allow 10% tolerance for MultiGeometry exploding
 EXPECTED = {
@@ -17,7 +27,7 @@ EXPECTED = {
     "waterbodies": 4000,  # 4086 Placemark
 }
 
-def _kml_to_gdf(path: pathlib.Path) -> gpd.GeoDataFrame:
+def _kml_to_gdf(path: pathlib.Path) -> "gpd.GeoDataFrame":
     """Try geopandas KML driver, fallback to fastkml/manual XML."""
     # Try geopandas first (requires libkml driver)
     try:
@@ -145,6 +155,13 @@ def _kml_to_gdf(path: pathlib.Path) -> gpd.GeoDataFrame:
 
 def load_assets(base="assets") -> dict:
     """Load 7 assets, return dict with GeoDataFrames and raster."""
+    if not HAS_GDAL:
+        # Return mock empty to allow app to start without GDAL
+        import geopandas as gpd_fallback
+        try:
+            return {"micro": gpd_fallback.GeoDataFrame(columns=["geometry"], crs="EPSG:4326"), "macro": gpd_fallback.GeoDataFrame(columns=["geometry"], crs="EPSG:4326"), "rivers": gpd_fallback.GeoDataFrame(columns=["geometry"], crs="EPSG:4326"), "buckingham": gpd_fallback.GeoDataFrame(columns=["geometry"], crs="EPSG:4326"), "krishna": gpd_fallback.GeoDataFrame(columns=["geometry"], crs="EPSG:4326"), "waterbodies": gpd_fallback.GeoDataFrame(columns=["geometry"], crs="EPSG:4326"), "dem": None, "roads": gpd_fallback.GeoDataFrame(columns=["geometry"], crs="EPSG:4326")}
+        except:
+            return {"micro": None, "macro": None, "rivers": None, "waterbodies": None, "dem": None, "roads": None}
     # base can be relative to repo root or absolute
     base_path = pathlib.Path(base)
     # Try to resolve: if not exists, try relative to repo root (matsya/matsya/../../assets)
@@ -164,6 +181,10 @@ def load_assets(base="assets") -> dict:
     if not base_path.exists():
         raise ValueError(f"assets base not found: {base} (tried {base_path})")
     
+    if not HAS_GDAL:
+        # If GDAL not available, return empty mock (will be handled by caller as no hydro)
+        # Caller will catch and return stats with 0
+        raise ValueError("GDAL not available — hydro disabled")
     data={}
     # map names to files (handle typo Channai vs Chennai)
     file_map = {
@@ -248,7 +269,7 @@ def validate_counts(data: dict):
             except:
                 pass
 
-def to_utm(gdf: gpd.GeoDataFrame, src="EPSG:4326", dst="EPSG:32644") -> gpd.GeoDataFrame:
+def to_utm(gdf: "gpd.GeoDataFrame", src="EPSG:4326", dst="EPSG:32644") -> "gpd.GeoDataFrame":
     if gdf is None or len(gdf)==0:
         return gdf
     if gdf.crs is None:
