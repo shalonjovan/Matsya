@@ -4,7 +4,7 @@ import rasterio
 from shapely.geometry import Point
 import numpy as np
 
-def waterbody_area_m2(gdf: gpd.GeoDataFrame, src_crs="EPSG:4326", dst_crs="EPSG:32644") -> gpd.GeoDataFrame:
+def waterbody_area_m2(gdf: "gpd.GeoDataFrame", src_crs="EPSG:4326", dst_crs="EPSG:32644") -> "gpd.GeoDataFrame":
     if gdf is None or len(gdf)==0:
         return gdf
     if gdf.crs is None:
@@ -14,7 +14,7 @@ def waterbody_area_m2(gdf: gpd.GeoDataFrame, src_crs="EPSG:4326", dst_crs="EPSG:
     gdf["area_m2"] = utm.geometry.area
     return gdf
 
-def sample_dem_at_points(gdf: gpd.GeoDataFrame, dem) -> list:
+def sample_dem_at_points(gdf: "gpd.GeoDataFrame", dem) -> list:
     """Sample DEM at centroids."""
     if dem is None:
         return [None]*len(gdf)
@@ -45,7 +45,7 @@ def sample_dem_at_points(gdf: gpd.GeoDataFrame, dem) -> list:
             vals=[None]*len(coords)
     return vals
 
-def enrich_waterbodies(waterbodies: gpd.GeoDataFrame, dem, bathymetry_offset=2.0) -> gpd.GeoDataFrame:
+def enrich_waterbodies(waterbodies: "gpd.GeoDataFrame", dem, bathymetry_offset=2.0) -> "gpd.GeoDataFrame":
     """Add area_m2, centroid, dem_elev, spill_crest."""
     if waterbodies is None or len(waterbodies)==0:
         return waterbodies

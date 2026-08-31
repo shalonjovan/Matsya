@@ -6,3 +6,9 @@ pytest
 httpx
 numpy
 python-multipart
+geopandas
+rasterio
+shapely
+pyproj
+networkx
+fiona

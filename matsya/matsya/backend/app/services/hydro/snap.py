@@ -5,7 +5,7 @@ from shapely.geometry import Point, LineString
 from shapely.ops import nearest_points
 import numpy as np
 
-def snap_drains_to_waterbodies(micro: gpd.GeoDataFrame, macro: gpd.GeoDataFrame, rivers: gpd.GeoDataFrame, waterbodies: gpd.GeoDataFrame, tol=50, river_tol=100):
+def snap_drains_to_waterbodies(micro: "gpd.GeoDataFrame", macro: "gpd.GeoDataFrame", rivers: "gpd.GeoDataFrame", waterbodies: "gpd.GeoDataFrame", tol=50, river_tol=100):
     """
     Returns dict with mapping drain_idx -> target id, snapped GeoDF, stats.
     Target format: "wb:<idx>" or "river:<idx>" or "sea"

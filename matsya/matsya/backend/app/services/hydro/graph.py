@@ -2,7 +2,7 @@
 import networkx as nx
 import geopandas as gpd
 
-def build_graph(snap_result: dict, waterbodies: gpd.GeoDataFrame, rivers: gpd.GeoDataFrame = None) -> nx.DiGraph:
+def build_graph(snap_result: dict, waterbodies: "gpd.GeoDataFrame", rivers: "gpd.GeoDataFrame" = None) -> nx.DiGraph:
     G = nx.DiGraph()
     mapping = snap_result.get("mapping", {})
     snapped = snap_result.get("snapped")
