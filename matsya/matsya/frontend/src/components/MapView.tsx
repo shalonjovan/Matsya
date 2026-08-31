@@ -27,7 +27,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       try {
         map = L.map(divRef.current!, { zoomControl:true, preferCanvas:true }).fitBounds(bounds)
         L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OSM Hot"}).addTo(map)
-        // flood overlay mock 180x180
+        // flood overlay mock 180x180 — Flood depth §9
         const canvas = document.createElement("canvas"); canvas.width=180; canvas.height=180
         const ctx = canvas.getContext("2d")
         if (ctx) {
@@ -35,21 +35,49 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           for(let i=0;i<180*180;i++){ const d = Math.random()*0.3; const c = d>0.05? [56,189,248,180]:[0,0,0,0]; img.data[i*4]=c[0]; img.data[i*4+1]=c[1]; img.data[i*4+2]=c[2]; img.data[i*4+3]=c[3]}
           ctx.putImageData(img,0,0)
           const overlay = (L as any).imageOverlay(canvas.toDataURL(), bounds, {opacity: layers?.depth?.opacity ?? 0.6})
-          // respect initial visibility
           if (layers?.depth?.visible ?? true) overlay.addTo(map)
           layerRefs.current.floodOverlay = overlay
         }
-        // create layer groups for hydro
-        layerRefs.current.drainLayers = (L as any).layerGroup()
+        // terrain/elevation overlay mock — brown→green hillshade §9
+        const terrainCanvas = document.createElement("canvas"); terrainCanvas.width=180; terrainCanvas.height=180
+        const tctx = terrainCanvas.getContext("2d")
+        if (tctx) {
+          const timg = tctx.createImageData(180,180)
+          for(let y=0;y<180;y++){
+            for(let x=0;x<180;x++){
+              const i=(y*180+x)*4
+              // mock DEM 4-70m across area, terrain color
+              const elev = 4 + (x/180)*20 + (y/180)*10 + Math.random()*5
+              const norm = Math.min(1, Math.max(0, (elev-4)/20))
+              // brown low → green high
+              const r = 160 - norm*60, g = 120 + norm*80, b = 60 + norm*20
+              timg.data[i]=r; timg.data[i+1]=g; timg.data[i+2]=b; timg.data[i+3]=180
+            }
+          }
+          tctx.putImageData(timg,0,0)
+          const terrainOverlay = (L as any).imageOverlay(terrainCanvas.toDataURL(), bounds, {opacity: layers?.terrain?.opacity ?? 0.7})
+          if (layers?.terrain?.visible) terrainOverlay.addTo(map)
+          layerRefs.current.terrainOverlay = terrainOverlay
+        }
+        // create layer groups
+        layerRefs.current.drainLayers = (L as any).layerGroup() // drainage + hydro drains
         layerRefs.current.waterbodyLayers = (L as any).layerGroup()
         layerRefs.current.riverLayers = (L as any).layerGroup()
         layerRefs.current.waterGroup = (L as any).layerGroup()
         layerRefs.current.infraGroup = (L as any).layerGroup()
-        // add groups to map initially based on visibility
-        if (layers?.hydro?.visible ?? true) {
+        // add groups to map initially based on visibility — flood and hydro already, drainage shares drainLayers
+        const hydroVisibleInit = layers?.hydro?.visible ?? true
+        const drainageVisibleInit = layers?.drainage?.visible ?? true
+        const terrainVisibleInit = layers?.terrain?.visible ?? false
+        if (hydroVisibleInit || drainageVisibleInit) {
           layerRefs.current.drainLayers.addTo(map)
+        }
+        if (hydroVisibleInit) {
           layerRefs.current.waterbodyLayers.addTo(map)
           layerRefs.current.riverLayers.addTo(map)
+        }
+        if (terrainVisibleInit && layerRefs.current.terrainOverlay) {
+          // already added above if visible
         }
         map.on("click", (e:any)=>{
           const lat=e.latlng.lat, lon=e.latlng.lng
@@ -104,7 +132,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
     const map = mapRef.current
     const L = (window as any).L
     if (!L || !layerRefs.current) return
-    // toggle flood depth canvas overlay
+    // toggle flood depth canvas overlay — §9 Flood
     if (layerRefs.current.floodOverlay) {
       const visible = layers?.depth?.visible ?? true
       const opacity = layers?.depth?.opacity ?? 0.6
@@ -117,16 +145,41 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         }
       } catch {}
     }
-    // hydro layers: drains and waterbodies
+    // terrain/elevation — §9 Terrain
+    if (layerRefs.current.terrainOverlay) {
+      const visible = layers?.terrain?.visible ?? false
+      const opacity = layers?.terrain?.opacity ?? 0.7
+      try {
+        if (visible) {
+          if (!map.hasLayer(layerRefs.current.terrainOverlay)) layerRefs.current.terrainOverlay.addTo(map)
+          layerRefs.current.terrainOverlay.setOpacity(opacity)
+        } else {
+          if (map.hasLayer(layerRefs.current.terrainOverlay)) map.removeLayer(layerRefs.current.terrainOverlay)
+        }
+      } catch {}
+    }
+    // drainage: drainLayers — §9 Drainage (micro/macro) — independent toggle
+    const drainageVisible = layers?.drainage?.visible ?? true
+    const drainageOpacity = layers?.drainage?.opacity ?? 0.7
+    if (layerRefs.current.drainLayers) {
+      try {
+        if (drainageVisible) {
+          if (!map.hasLayer(layerRefs.current.drainLayers)) layerRefs.current.drainLayers.addTo(map)
+          layerRefs.current.drainLayers.eachLayer((l:any)=>{ if(l.setStyle) l.setStyle({opacity: drainageOpacity}) })
+        } else {
+          if (map.hasLayer(layerRefs.current.drainLayers)) map.removeLayer(layerRefs.current.drainLayers)
+        }
+      } catch {}
+    }
+    // hydro: waterbodies + river flow — §9 Hydro
     const hydroVisible = layers?.hydro?.visible ?? true
     const hydroOpacity = layers?.hydro?.opacity ?? 0.7
-    ;["drainLayers","waterbodyLayers","riverLayers"].forEach(key=>{
+    ;["waterbodyLayers","riverLayers"].forEach(key=>{
       const group = layerRefs.current[key]
       if (!group) return
       try {
         if (hydroVisible) {
           if (!map.hasLayer(group)) group.addTo(map)
-          // update opacity for polylines/polygons in group
           group.eachLayer((l:any)=>{
             if (l.setStyle) {
               if (l.options.fillOpacity !== undefined) l.setStyle({fillOpacity: hydroOpacity*0.3, opacity: hydroOpacity})
