@@ -9,10 +9,13 @@ import AffectedAreas from "./AffectedAreas"
 import InfraImpact from "./InfraImpact"
 import Reports from "./Reports"
 import LiveStatus from "./LiveStatus"
+import HydroLayer from "./HydroLayer"
+import WaterbodyInspector from "./WaterbodyInspector"
 import type { Simulation } from "../types/simulation"
 
 export default function MapShell({ simulation }: { simulation: Simulation }) {
   const [selectedPoint, setSelectedPoint] = useState<any>(null)
+  const [selectedWaterbody, setSelectedWaterbody] = useState<string | null>(null)
   const [time, setTime] = useState(0)
   const [layers, setLayers] = useState<any>({ depth:{visible:true,opacity:0.8}, terrain:{visible:false}, drainage:{visible:true,opacity:0.6}, roads:{visible:true} })
   return (
@@ -20,7 +23,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
       <div className="flex flex-1 overflow-hidden border rounded-xl shadow min-h-0">
         <div className="flex-1 relative bg-slate-900 min-h-0 min-w-0">
           <div className="absolute inset-0">
-            <MapView simulation={simulation} layers={layers} time={time} onPointSelect={setSelectedPoint} />
+            <MapView simulation={simulation} layers={layers} time={time} onPointSelect={setSelectedPoint} onWaterbodySelect={setSelectedWaterbody} />
           </div>
           <div className="absolute top-2 left-2 z-[400] w-64">
             <SearchBar />
@@ -30,8 +33,10 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
           </div>
         </div>
         <div className="w-[360px] shrink-0 border-l bg-white flex flex-col overflow-auto">
+          <HydroLayer simId={simulation.id} />
           <LayerPanel layers={layers} onChange={setLayers} />
           <PointInspector point={selectedPoint} />
+          <WaterbodyInspector waterbodyId={selectedWaterbody} />
           <AffectedAreas simulation={simulation} />
           <InfraImpact simulation={simulation} />
           <Reports simulation={simulation} />

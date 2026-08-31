@@ -1,6 +1,7 @@
 
 import { useState } from "react"
 import type { Simulation } from "../types/simulation"
+import HydroBadge from "./HydroBadge"
 import { API_BASE } from "../hooks/useSimulation"
 
 interface Props {
@@ -134,6 +135,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                 <li>Drainage: {drainMissing ? <span className="text-amber-600">⚠ missing — simulation will run without drainage (micro/macro/storm)</span> : <span className="text-emerald-600">✓</span>}</li>
                 <li>Rivers/Canals/Water bodies/Roads/Buildings: <span className="text-slate-500">optional (seeded from test/)</span></li>
               </ul>
+              <HydroBadge />
               {drainMissing && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 p-2 rounded">Missing datasets indicated before run per §5.2 — you can still run, but flood will be surface-only.</p>}
               <label>Rainfall rate mm/hr <input value={rate} onChange={e=>setRate(e.target.value)} className="w-full border rounded px-2 py-1" /></label>
               <label>Duration hr <input value={duration} onChange={e=>setDuration(e.target.value)} className="w-full border rounded px-2 py-1" /></label>

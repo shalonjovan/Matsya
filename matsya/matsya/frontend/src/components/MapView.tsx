@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react"
 import type { Simulation } from "../types/simulation"
 import "leaflet/dist/leaflet.css"
+import { drainColor } from "../utils/hydro"
 
-export default function MapView({ simulation, layers, time, onPointSelect }: any) {
+export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect }: any) {
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   useEffect(()=>{
@@ -39,6 +40,28 @@ export default function MapView({ simulation, layers, time, onPointSelect }: any
           fetch(`/api/simulations/${simulation.id}/point?lat=${lat}&lon=${lon}&time=${time}`).then(r=>r.json()).then(j=>onPointSelect?.(j)).catch(()=>onPointSelect?.({lat,lon, elevation:15.5, floodDepth:0.42, velocity:0.3}))
         })
         mapRef.current = map
+        // hydro: fetch and draw drains->waterbodies
+        fetch("/api/hydro/graph").then(r=>r.json()).then(g=>{
+          try{
+            const drains = g.drains?.features || []
+            const wbs = g.waterbodies?.features || []
+            // waterbodies polygons
+            wbs.slice(0,50).forEach((f:any)=>{
+              const latlngs = f.geometry.coordinates[0].map((c:any)=>[c[1], c[0]])
+              const poly = (L as any).polygon(latlngs, {color:"#3b82f6", weight:1, fillColor:"#3b82f6", fillOpacity:0.2}).addTo(map)
+              poly.on("click", ()=> onWaterbodySelect?.(String(f.properties.id)))
+            })
+            // drains with arrow color by target
+            drains.slice(0,100).forEach((f:any)=>{
+              const target = f.properties.target || "sea"
+              const color = drainColor(target)
+              let latlngs: any[] = []
+              if (f.geometry.type==="LineString") latlngs = f.geometry.coordinates.map((c:any)=>[c[1], c[0]])
+              else if (f.geometry.type==="MultiLineString") latlngs = f.geometry.coordinates[0].map((c:any)=>[c[1], c[0]])
+              if(latlngs.length) (L as any).polyline(latlngs, {color, weight:2, opacity:0.7}).addTo(map)
+            })
+          }catch{}
+        }).catch(()=>{})
         // critical: invalidateSize after container has size (flex layout)
         const invalidate = () => { try { map.invalidateSize() } catch {} }
         setTimeout(invalidate, 100)

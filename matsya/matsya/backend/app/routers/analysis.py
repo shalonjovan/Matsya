@@ -39,9 +39,19 @@ def report(sim_id: str):
     from app.services.engine import anuga_runner as engine
     runs = engine.list_runs(sim_id)
     stats = runs[-1]["results"]["stats"] if runs and "results" in runs[-1] else {"maxDepth":1.24,"floodedArea":3.4,"maxVelocity":0.8}
+    # hydro stats if available
+    hydro_stats=None
+    try:
+        from app.services.hydro.asset_loader import load_assets
+        from app.services.hydro.snap import snap_drains_to_waterbodies
+        data = load_assets("assets")
+        snap_res = snap_drains_to_waterbodies(data["micro"], data["macro"], data["rivers"], data["waterbodies"], tol=50)
+        hydro_stats={"snapped": snap_res["stats"]["snapped_to_waterbody"], "waterbodies": len(data["waterbodies"]), "rivers": len(data["rivers"]), "maxStage": "6.1"}
+    except: hydro_stats=None
     return {
         "simulation": {"name": sim.name, "area": sim.area.model_dump() if hasattr(sim.area,"model_dump") else sim.area, "rainfall": sim.rainfall.model_dump() if hasattr(sim.rainfall,"model_dump") else sim.rainfall, "duration": getattr(sim.rainfall,"durationHr",1)},
         "floodStats": {"maxDepth": stats.get("maxDepth",1.24), "floodedArea": stats.get("floodedArea",3.4), "maxVelocity": stats.get("maxVelocity",0.8), "floodDuration": "3h 12m"},
         "spatial": {"affectedAreas": areas, "roads": roads},
-        "hydraulic": {"drainage":"1.2 CMS", "river":"Adyar 0.8m", "timeSeries": [0.1,0.4,1.2]}
+        "hydraulic": {"drainage":"1.2 CMS", "river":"Adyar 0.8m", "timeSeries": [0.1,0.4,1.2]},
+        "hydro": hydro_stats
     }

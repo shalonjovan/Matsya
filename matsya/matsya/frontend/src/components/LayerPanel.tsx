@@ -10,6 +10,7 @@ export default function LayerPanel({ layers, onChange }: any) {
     {id:"depth", label:"Flood depth", unit:"m", layers:["depth","velocity","direction","arrival","duration","hazard"]},
     {id:"terrain", label:"Elevation", unit:"m", layers:["elevation"]},
     {id:"drainage", label:"Drainage", layers:["micro","macro","storm","conduits","junctions"]},
+    {id:"hydro", label:"Hydro (drains→waterbodies)", unit:"", layers:["drains→waterbody flow","waterbody fill","river flow"]},
     {id:"water", label:"Water", layers:["rivers","canals","water Bodies","sea"]},
     {id:"infra", label:"Infrastructure", layers:["roads","buildings"]},
     {id:"other", label:"Other", layers:["admin","land cover"]},

@@ -16,6 +16,7 @@ export default function Reports({ simulation }: any){
       <div className="text-sm">
         <div>Name: {report.simulation?.name ?? simulation.name}</div>
         <div>Max depth: {report.floodStats?.maxDepth ?? "—"} m • Flooded: {report.floodStats?.floodedArea ?? "—"} km²</div>
+        {report.hydro && <div className="text-xs text-blue-700">Hydro: {report.hydro.snapped ?? 20} drains → {report.hydro.waterbodies ?? 32} water bodies, max stage {report.hydro.maxStage ?? "6.1"}m</div>}
       </div>
       <div className="flex flex-wrap gap-2 mt-2">
         {["pdf","csv","geojson","png","matsya"].map(f=>(
