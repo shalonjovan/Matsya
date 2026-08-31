@@ -33,6 +33,14 @@ export interface Metadata {
   status: Status;
 }
 
+export interface HydroConfig {
+  enabled: boolean;
+  version: string;
+  drainToWaterbody?: Record<string, string> | null;
+  waterbodyStates?: Record<string, any> | null;
+  graphStats?: any;
+}
+
 export interface Simulation {
   id: string;
   name: string;
@@ -50,5 +58,6 @@ export interface Simulation {
   boundaries?: any;
   parameters?: any;
   results?: any;
+  hydro?: HydroConfig | null;
   metadata?: any;
 }

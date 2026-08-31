@@ -1,8 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "MatsyaSimulation",
+  "title": "MatsyaSimulation v1.1 (hydro)",
   "type": "object",
-  "required": ["name", "area", "rainfall"],
+  "required": [
+    "name",
+    "area",
+    "rainfall"
+  ],
   "properties": {
     "id": {
       "type": "string",
@@ -15,71 +19,187 @@
     },
     "area": {
       "type": "object",
-      "required": ["bbox"],
+      "required": [
+        "bbox"
+      ],
       "properties": {
         "bbox": {
           "type": "array",
-          "items": { "type": "number" },
+          "items": {
+            "type": "number"
+          },
           "minItems": 4,
           "maxItems": 4,
           "description": "[minLon, minLat, maxLon, maxLat] with minLon < maxLon and minLat < maxLat",
-          "examples": [[80.15, 13.08, 80.20, 13.13]]
+          "examples": [
+            [
+              80.15,
+              13.08,
+              80.2,
+              13.13
+            ]
+          ]
         },
         "crs": {
           "type": "string",
           "default": "EPSG:4326"
         },
         "polygon": {
-          "type": ["object", "null"],
+          "type": [
+            "object",
+            "null"
+          ],
           "description": "Optional GeoJSON polygon"
         }
       }
     },
     "terrain": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "properties": {
-        "demUri": { "type": ["string", "null"] },
-        "res": { "type": ["number", "null"] }
+        "demUri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "res": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       }
     },
     "rainfall": {
       "type": "object",
-      "required": ["rateMmHr", "durationHr"],
+      "required": [
+        "rateMmHr",
+        "durationHr"
+      ],
       "properties": {
-        "rateMmHr": { "type": "number", "description": "Rainfall rate mm/hr" },
-        "durationHr": { "type": "number", "description": "Duration hours" }
+        "rateMmHr": {
+          "type": "number",
+          "description": "Rainfall rate mm/hr"
+        },
+        "durationHr": {
+          "type": "number",
+          "description": "Duration hours"
+        }
       }
     },
     "drainage": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "properties": {
-        "uri": { "type": ["string", "null"] },
-        "conduitCount": { "type": ["integer", "null"] }
+        "uri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "conduitCount": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
       }
     },
-    "rivers": { "type": ["object", "null", "array"] },
-    "canals": { "type": ["object", "null", "array"] },
-    "waterBodies": { "type": ["object", "null", "array"] },
-    "roads": { "type": ["object", "null", "array"] },
-    "buildings": { "type": ["object", "null", "array"] },
-    "landCover": { "type": ["object", "null"] },
-    "boundaries": { "type": ["object", "null"] },
+    "rivers": {
+      "type": [
+        "object",
+        "null",
+        "array"
+      ]
+    },
+    "canals": {
+      "type": [
+        "object",
+        "null",
+        "array"
+      ]
+    },
+    "waterBodies": {
+      "type": [
+        "object",
+        "null",
+        "array"
+      ]
+    },
+    "roads": {
+      "type": [
+        "object",
+        "null",
+        "array"
+      ]
+    },
+    "buildings": {
+      "type": [
+        "object",
+        "null",
+        "array"
+      ]
+    },
+    "landCover": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "boundaries": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
     "parameters": {
-      "type": ["object", "null"],
+      "type": [
+        "object",
+        "null"
+      ],
       "properties": {
-        "cfl": { "type": ["number", "null"] },
-        "dt": { "type": ["number", "null"] },
-        "theta": { "type": ["number", "null"] }
+        "cfl": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "dt": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "theta": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
       }
     },
     "results": {
-      "type": ["object", "null"]
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "metadata": {
       "type": "object",
       "properties": {
-        "created": { "type": "string", "format": "date-time" },
-        "updated": { "type": "string", "format": "date-time" },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated": {
+          "type": "string",
+          "format": "date-time"
+        },
         "status": {
           "$ref": "#/definitions/StatusEnum"
         }
@@ -88,12 +208,55 @@
     "status": {
       "$ref": "#/definitions/StatusEnum",
       "default": "Ready"
+    },
+    "hydro": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "version": {
+          "type": "string",
+          "default": "1.1"
+        },
+        "drainToWaterbody": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "drain id -> wb:xxx / river:xxx / sea"
+        },
+        "waterbodyStates": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "graphStats": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
     }
   },
   "definitions": {
     "StatusEnum": {
       "type": "string",
-      "enum": ["Ready", "Running", "Completed", "Incomplete", "Error", "Live", "Offline"]
+      "enum": [
+        "Ready",
+        "Running",
+        "Completed",
+        "Incomplete",
+        "Error",
+        "Live",
+        "Offline"
+      ]
     }
   }
 }
