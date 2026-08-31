@@ -17,7 +17,19 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
   const [selectedPoint, setSelectedPoint] = useState<any>(null)
   const [selectedWaterbody, setSelectedWaterbody] = useState<string | null>(null)
   const [time, setTime] = useState(0)
-  const [layers, setLayers] = useState<any>({ depth:{visible:true,opacity:0.8}, terrain:{visible:false}, drainage:{visible:true,opacity:0.6}, roads:{visible:true} })
+  const [layers, setLayers] = useState<any>({ 
+    depth:{visible:true,opacity:0.8}, 
+    terrain:{visible:false,opacity:0.7}, 
+    drainage:{visible:true,opacity:0.7}, 
+    hydro:{visible:true,opacity:0.8},
+    water:{visible:true,opacity:0.7},
+    infra:{visible:true,opacity:0.8},
+    other:{visible:false,opacity:0.7},
+    roads:{visible:true},
+    buildings:{visible:true},
+    rivers:{visible:true},
+    canals:{visible:true}
+  })
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] gap-0">
       <div className="flex flex-1 overflow-hidden border rounded-xl shadow min-h-0">

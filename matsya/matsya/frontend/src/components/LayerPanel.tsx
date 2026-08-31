@@ -1,7 +1,8 @@
-
-import { useState } from "react"
+import { useEffect, useState } from "react"
 export default function LayerPanel({ layers, onChange }: any) {
   const [local, setLocal] = useState(layers)
+  // sync when parent changes
+  useEffect(()=>{ setLocal(layers) },[layers])
   const update = (k:string, patch:any)=>{
     const next={...local, [k]:{...local[k], ...patch}}
     setLocal(next); onChange?.(next)
@@ -25,7 +26,7 @@ export default function LayerPanel({ layers, onChange }: any) {
               <input type="checkbox" checked={local[g.id]?.visible ?? true} onChange={e=>update(g.id,{visible:e.target.checked})} />
               {g.label} {g.unit && <span className="text-xs text-slate-400">({g.unit})</span>}
             </label>
-            <input type="range" min={0} max={1} step={0.1} value={local[g.id]?.opacity ?? 0.8} onChange={e=>update(g.id,{opacity:parseFloat(e.target.value)})} className="w-16" />
+            <input type="range" min={0} max={1} step={0.1} value={local[g.id]?.opacity ?? 0.8} onChange={e=>update(g.id,{opacity:parseFloat(e.target.value)})} className="w-16" title="Opacity" />
           </div>
           <div className="text-xs text-slate-400 ml-6">{g.layers.join(", ")} — legend: 0→0.05 light, 0.3 medium, 1.0 dark</div>
         </div>
