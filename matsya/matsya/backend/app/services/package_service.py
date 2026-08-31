@@ -80,6 +80,14 @@ def create_matsya(sim: Simulation) -> bytes:
         results_val = data.get("results")
         z.writestr("results/results.json", json.dumps(results_val if results_val is not None else {}, indent=2))
 
+        # hydro (v1.1) — ensure hydro files exist even if simulation has no hydro
+        hydro_val = data.get("hydro")
+        if hydro_val is None:
+            hydro_val = {"enabled": False, "version": "1.1"}
+        z.writestr("hydro/graph.json", json.dumps(hydro_val.get("graphStats", {}) if isinstance(hydro_val, dict) else {}, indent=2))
+        z.writestr("hydro/snap.json", json.dumps(hydro_val.get("drainToWaterbody", {}) if isinstance(hydro_val, dict) else {}, indent=2))
+        z.writestr("hydro/waterbodies.geojson", json.dumps({"type":"FeatureCollection","features":[]}, indent=2))
+
     buf.seek(0)
     return buf.read()
 
@@ -130,8 +138,14 @@ def read_matsya(data: bytes) -> Simulation:
             if version is None:
                 raise ValueError("missing matsya_version")
 
-            if version != MATSYA_VERSION:
+            # Support 1.0 -> 1.1 migration: 1.0 is allowed but will be upgraded to 1.1
+            if version not in (MATSYA_VERSION, "1.0"):
                 raise ValueError(f"unsupported version: {version}")
+            # If 1.0, upgrade obj to 1.1 by adding hydro defaults
+            if version == "1.0":
+                obj["matsya_version"] = MATSYA_VERSION
+                if "hydro" not in obj or obj["hydro"] is None:
+                    obj["hydro"] = {"enabled": False, "version": "1.1"}
 
             # Validate simulation fields via Pydantic
             try:

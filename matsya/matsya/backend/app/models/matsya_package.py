@@ -1,6 +1,6 @@
-"""Matsya package constants and helpers per prd §6."""
+"""Matsya package constants and helpers per prd §6 — v1.1 with hydro."""
 
-MATSYA_VERSION = "1.0"
+MATSYA_VERSION = "1.1"
 
 # ZIP layout per §6: portable simulation package contents
 PACKAGE_FILES = [
@@ -18,6 +18,10 @@ PACKAGE_FILES = [
     "parameters/parameters.json",
     "results/results.json",
     "matsya_version",
+    # v1.1 hydro extension
+    "hydro/graph.json",
+    "hydro/snap.json",
+    "hydro/waterbodies.geojson",
 ]
 
 def get_package_structure():
