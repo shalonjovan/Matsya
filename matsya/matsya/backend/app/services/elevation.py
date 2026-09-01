@@ -86,3 +86,31 @@ def clip_and_render(bbox, width=180, height=180):
         png = buf.getvalue()
         stats = {"min": vmin, "max": vmax, "mean": vmean, "width": width, "height": height, "bbox": bbox}
         return arr, png, stats
+
+
+def sample_dem(lon: float, lat: float) -> float | None:
+    """Sample DEM elevation at a single lon/lat point.
+
+    Returns float elevation in meters (EGM96 MSL) or None if nodata/ocean/out-of-bounds.
+    Handles nodata -32768 → None and Docker /app/assets fallback via shared TIF.
+    """
+    try:
+        with rasterio.open(TIF) as src:
+            for val in src.sample([(lon, lat)]):
+                v = val[0]
+                # rasterio nodata sentinel -32768.0
+                if src.nodata is not None and v == src.nodata:
+                    return None
+                # NaN check (boundless fill or masked)
+                try:
+                    if np.isnan(v):
+                        return None
+                except Exception:
+                    pass
+                # handle -32768 nodata and any extreme negative (bathymetry masked)
+                if v < -1000:
+                    return None
+                return float(v)
+    except Exception:
+        return None
+    return None
