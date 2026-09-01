@@ -40,16 +40,26 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       try {
         map = L.map(divRef.current!, { zoomControl:true, preferCanvas:true }).fitBounds(bounds)
         L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OSM Hot"}).addTo(map)
-        // flood overlay mock 180x180 — Flood depth §9
-        const canvas = document.createElement("canvas"); canvas.width=180; canvas.height=180
-        const ctx = canvas.getContext("2d")
-        if (ctx) {
-          const img = ctx.createImageData(180,180)
-          for(let i=0;i<180*180;i++){ const d = Math.random()*0.3; const c = d>0.05? [56,189,248,180]:[0,0,0,0]; img.data[i*4]=c[0]; img.data[i*4+1]=c[1]; img.data[i*4+2]=c[2]; img.data[i*4+3]=c[3]}
-          ctx.putImageData(img,0,0)
-          const overlay = (L as any).imageOverlay(canvas.toDataURL(), bounds, {opacity: layers?.depth?.opacity ?? 0.6})
-          if (layers?.depth?.visible ?? true) overlay.addTo(map)
-          layerRefs.current.floodOverlay = overlay
+        // flood overlay from TIF per simulation + time — Flood depth §9
+        const timeIdx = time ?? 0
+        const floodUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx}`
+        try {
+          try { fetch(floodUri).catch(()=>{}) } catch {}
+          const floodOverlay = (L as any).imageOverlay(floodUri, bounds, {opacity: layers?.depth?.opacity ?? 0.6})
+          if (layers?.depth?.visible ?? true) floodOverlay.addTo(map)
+          layerRefs.current.floodOverlay = floodOverlay
+        } catch {
+          // fallback to mock if fetch fails (offline) per prd §21
+          const canvas = document.createElement("canvas"); canvas.width=180; canvas.height=180
+          const ctx = canvas.getContext("2d")
+          if (ctx) {
+            const img = ctx.createImageData(180,180)
+            for(let i=0;i<180*180;i++){ const d = Math.random()*0.3; const c = d>0.05? [56,189,248,180]:[0,0,0,0]; img.data[i*4]=c[0]; img.data[i*4+1]=c[1]; img.data[i*4+2]=c[2]; img.data[i*4+3]=c[3]}
+            ctx.putImageData(img,0,0)
+            const overlay = (L as any).imageOverlay(canvas.toDataURL(), bounds, {opacity: layers?.depth?.opacity ?? 0.6})
+            if (layers?.depth?.visible ?? true) overlay.addTo(map)
+            layerRefs.current.floodOverlay = overlay
+          }
         }
         // terrain/elevation overlay — hypsometric from TIF per simulation §9
         // Fetch stored hypsometric PNG for this simulation
@@ -193,8 +203,16 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
     const map = mapRef.current
     const L = (window as any).L
     if (!L || !layerRefs.current) return
-    // toggle flood depth canvas overlay — §9 Flood
+    // toggle flood depth overlay + update URL per time — §9 Flood
     if (layerRefs.current.floodOverlay) {
+      try {
+        const timeIdx2 = time ?? 0
+        const newUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx2}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx2}`
+        if (layerRefs.current.floodOverlay._url !== newUri) {
+          try { fetch(newUri).catch(()=>{}) } catch {}
+          try { layerRefs.current.floodOverlay.setUrl(newUri) } catch {}
+        }
+      } catch {}
       const visible = layers?.depth?.visible ?? true
       const opacity = layers?.depth?.opacity ?? 0.6
       try {
