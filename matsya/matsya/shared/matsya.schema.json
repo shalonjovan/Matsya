@@ -221,6 +221,44 @@
         }
       }
     },
+    "flood": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "floodUri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stats": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "steps": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
     "metadata": {
       "type": "object",
       "properties": {

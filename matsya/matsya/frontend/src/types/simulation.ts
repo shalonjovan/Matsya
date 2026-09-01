@@ -48,6 +48,14 @@ export interface Elevation {
   height?: number | null;
 }
 
+export interface Flood {
+  floodUri?: string | null;
+  stats?: any;
+  width?: number | null;
+  height?: number | null;
+  steps?: number | null;
+}
+
 export interface Simulation {
   id: string;
   name: string;
@@ -66,6 +74,7 @@ export interface Simulation {
   parameters?: any;
   results?: any;
   elevation?: Elevation | null;
+  flood?: Flood | null;
   hydro?: HydroConfig | null;
   metadata?: any;
 }
