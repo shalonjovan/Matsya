@@ -1,5 +1,23 @@
 
 from typing import Dict, Any
+import math
+
+def _lat_lon_to_row_col(lat: float, lon: float, bbox, rows: int, cols: int):
+    """Mirror frontend src/utils/geo.ts latLonToRowCol."""
+    minLon, minLat, maxLon, maxLat = bbox
+    dy = (maxLat - minLat) / rows
+    dx = (maxLon - minLon) / cols
+    # avoid division by zero
+    if dy == 0:
+        dy = 1e-9
+    if dx == 0:
+        dx = 1e-9
+    r = math.floor((maxLat - lat) / dy)
+    c = math.floor((lon - minLon) / dx)
+    r = max(0, min(rows - 1, r))
+    c = max(0, min(cols - 1, c))
+    return r, c
+
 
 def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
     # Try real DEM sample first, fallback to mock
@@ -8,17 +26,149 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
         real_elev = sample_dem(lon, lat)
     except:
         real_elev = None
-    # bbox to row/col stub, then mock depth
-    bbox = sim.area.bbox if hasattr(sim,"area") else [80.15,13.08,80.20,13.13]
-    minLon, minLat, maxLon, maxLat = bbox
-    # clamp
+    # bbox extraction
+    try:
+        if hasattr(sim, "area"):
+            # sim.area may be Pydantic model
+            bbox = sim.area.bbox if hasattr(sim.area, "bbox") else sim.area["bbox"]  # type: ignore
+        elif isinstance(sim, dict):
+            bbox = sim.get("area", {}).get("bbox", [80.15,13.08,80.20,13.13])  # type: ignore
+        else:
+            bbox = [80.15,13.08,80.20,13.13]
+    except Exception:
+        try:
+            bbox = sim.model_dump()["area"]["bbox"]  # type: ignore
+        except Exception:
+            bbox = [80.15,13.08,80.20,13.13]
+    try:
+        minLon, minLat, maxLon, maxLat = bbox
+    except Exception:
+        minLon, minLat, maxLon, maxLat = [80.15,13.08,80.20,13.13]
+        bbox = [minLon, minLat, maxLon, maxLat]
+    # hash for deterministic mock (also used for elevation fallback)
+    h = (int(lat*1000) ^ int(lon*1000)) % 100
+    # clamp out-of-bbox
     if not (minLat <= lat <= maxLat and minLon <= lon <= maxLon):
         elevation = real_elev if real_elev is not None else 0
         floodDepth = 0
     else:
-        # hash for deterministic mock
-        h = (int(lat*1000) ^ int(lon*1000)) % 100
-        floodDepth = (h/100)*1.2 if time>600 else (h/100)*0.3
+        # Try real flood snapshots if sim.flood exists
+        floodDepth = None
+        try:
+            has_flood = False
+            try:
+                if hasattr(sim, "flood"):
+                    f = sim.flood  # type: ignore
+                    if f is not None:
+                        # f may be dict or model
+                        if isinstance(f, dict):
+                            has_flood = f.get("stats") is not None
+                        else:
+                            has_flood = getattr(f, "stats", None) is not None
+                elif isinstance(sim, dict):
+                    has_flood = sim.get("flood") is not None and sim.get("flood", {}).get("stats") is not None
+            except Exception:
+                has_flood = False
+
+            if has_flood:
+                from app.services.flood import generate_flood
+                import numpy as np
+
+                # Resolve bbox, rainfall, width, height, steps
+                # rainfall
+                try:
+                    if hasattr(sim, "rainfall"):  # type: ignore[attr-defined]
+                        rf = sim.rainfall  # type: ignore[attr-defined]
+                        if rf is None:
+                            rainfall = {"rateMmHr": 50, "durationHr": 1}
+                        elif isinstance(rf, dict):
+                            rainfall = {"rateMmHr": rf.get("rateMmHr", 50), "durationHr": rf.get("durationHr", 1)}
+                        elif hasattr(rf, "rateMmHr"):
+                            rainfall = {"rateMmHr": float(rf.rateMmHr), "durationHr": float(rf.durationHr)}  # type: ignore
+                        else:
+                            rainfall = {"rateMmHr": 50, "durationHr": 1}
+                    elif isinstance(sim, dict):
+                        rf = sim.get("rainfall", {})  # type: ignore
+                        if isinstance(rf, dict):
+                            rainfall = {"rateMmHr": rf.get("rateMmHr", 50), "durationHr": rf.get("durationHr", 1)}
+                        else:
+                            rainfall = {"rateMmHr": 50, "durationHr": 1}
+                    else:
+                        rainfall = {"rateMmHr": 50, "durationHr": 1}
+                except Exception:
+                    rainfall = {"rateMmHr": 50, "durationHr": 1}
+
+                # width, height, steps from sim.flood if available
+                width = 180
+                height = 180
+                steps = 3
+                try:
+                    f = sim.flood  # type: ignore
+                    if isinstance(f, dict):
+                        width = int(f.get("width", 180) or 180)
+                        height = int(f.get("height", 180) or 180)
+                        steps = int(f.get("steps", 3) or 3)
+                        # also try stats
+                        if f.get("stats") and isinstance(f["stats"], dict):
+                            width = int(f["stats"].get("width", width) or width)
+                            height = int(f["stats"].get("height", height) or height)
+                            steps = int(f["stats"].get("steps", steps) or steps)
+                    else:
+                        if getattr(f, "width", None) is not None:
+                            width = int(f.width)  # type: ignore
+                        if getattr(f, "height", None) is not None:
+                            height = int(f.height)  # type: ignore
+                        if getattr(f, "steps", None) is not None:
+                            steps = int(f.steps)  # type: ignore
+                        # stats may override
+                        stats_attr = getattr(f, "stats", None)
+                        if isinstance(stats_attr, dict):
+                            width = int(stats_attr.get("width", width) or width)
+                            height = int(stats_attr.get("height", height) or height)
+                            steps = int(stats_attr.get("steps", steps) or steps)
+                except Exception:
+                    pass
+
+                # Clamp steps
+                steps = max(1, min(steps, 73))
+
+                # Generate snapshots (deterministic per bbox+rainfall)
+                snaps, _, _ = generate_flood(bbox, rainfall, width=width, height=height, steps=steps)
+
+                # Map time to snapshot index (time is snapshot index per spec)
+                try:
+                    idx = int(time)
+                except Exception:
+                    idx = 0
+                idx = max(0, min(idx, len(snaps) - 1))
+
+                arr = snaps[idx]
+                rows, cols = arr.shape[0], arr.shape[1]
+                r, c = _lat_lon_to_row_col(lat, lon, bbox, rows, cols)
+                val = arr[r, c]
+                # handle nan
+                try:
+                    if val is None or (isinstance(val, float) and math.isnan(val)):
+                        floodDepth = 0.0
+                    else:
+                        # numpy nan check
+                        try:
+                            import numpy as _np
+                            if _np.isnan(val):
+                                floodDepth = 0.0
+                            else:
+                                floodDepth = float(val)
+                        except Exception:
+                            floodDepth = float(val)
+                except Exception:
+                    floodDepth = float(val) if val is not None else 0.0
+        except Exception as e:
+            # print(f"flood sample failed: {e}")
+            floodDepth = None
+
+        if floodDepth is None:
+            # fallback hash mock
+            floodDepth = (h/100)*1.2 if time>600 else (h/100)*0.3
         elevation = real_elev if real_elev is not None else (15.5 + (h%10)*0.2)
     velocity = floodDepth*0.7 + 0.05
     return {
@@ -31,7 +181,7 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
         "firstFlooded": "00:05" if floodDepth>0.05 else None,
         "peak": "01:20" if floodDepth>0.5 else None,
         "duration": "2h 10m" if floodDepth>0.05 else None,
-        "rainfall": getattr(sim.rainfall, "rateMmHr", 50) if hasattr(sim,"rainfall") else 50,
+        "rainfall": getattr(getattr(sim, "rainfall", None), "rateMmHr", 50) if hasattr(sim,"rainfall") else 50,  # type: ignore[attr-defined]
         "nearestDrain": "D-42 (12m)",
         "nearestRiver": "Adyar (450m)",
         "road": "GST Road",
