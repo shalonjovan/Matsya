@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-export default function LayerPanel({ layers, onChange }: any) {
+export default function LayerPanel({ layers, onChange, simulation }: any) {
   const [local, setLocal] = useState(layers)
   // sync when parent changes
   useEffect(()=>{ setLocal(layers) },[layers])
@@ -28,7 +28,9 @@ export default function LayerPanel({ layers, onChange }: any) {
             </label>
             <input type="range" min={0} max={1} step={0.1} value={local[g.id]?.opacity ?? 0.8} onChange={e=>update(g.id,{opacity:parseFloat(e.target.value)})} className="w-16" title="Opacity" />
           </div>
-          <div className="text-xs text-slate-400 ml-6">{g.layers.join(", ")} — legend: 0→0.05 light, 0.3 medium, 1.0 dark</div>
+          <div className="text-xs text-slate-400 ml-6">
+            {g.layers.join(", ")} — {g.id==="terrain" && simulation?.elevation?.stats ? `legend: ${simulation.elevation.stats.min.toFixed(1)}m → ${simulation.elevation.stats.max.toFixed(1)}m hypsometric` : g.id==="terrain" ? "legend: hypsometric tint per TIF" : "legend: 0→0.05 light, 0.3 medium, 1.0 dark"}
+          </div>
         </div>
       ))}
       <div className="text-xs text-slate-500">Opacity and ordering where relevant per §9. Numerical layers show units and legend.</div>

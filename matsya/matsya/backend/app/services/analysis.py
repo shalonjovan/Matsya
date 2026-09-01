@@ -2,18 +2,24 @@
 from typing import Dict, Any
 
 def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
+    # Try real DEM sample first, fallback to mock
+    try:
+        from app.services.elevation import sample_dem
+        real_elev = sample_dem(lon, lat)
+    except:
+        real_elev = None
     # bbox to row/col stub, then mock depth
     bbox = sim.area.bbox if hasattr(sim,"area") else [80.15,13.08,80.20,13.13]
     minLon, minLat, maxLon, maxLat = bbox
     # clamp
     if not (minLat <= lat <= maxLat and minLon <= lon <= maxLon):
-        elevation = 0
+        elevation = real_elev if real_elev is not None else 0
         floodDepth = 0
     else:
         # hash for deterministic mock
         h = (int(lat*1000) ^ int(lon*1000)) % 100
         floodDepth = (h/100)*1.2 if time>600 else (h/100)*0.3
-        elevation = 15.5 + (h%10)*0.2
+        elevation = real_elev if real_elev is not None else (15.5 + (h%10)*0.2)
     velocity = floodDepth*0.7 + 0.05
     return {
         "lat": lat, "lon": lon,

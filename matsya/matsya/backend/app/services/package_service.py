@@ -88,6 +88,36 @@ def create_matsya(sim: Simulation) -> bytes:
         z.writestr("hydro/snap.json", json.dumps(hydro_val.get("drainToWaterbody", {}) if isinstance(hydro_val, dict) else {}, indent=2))
         z.writestr("hydro/waterbodies.geojson", json.dumps({"type":"FeatureCollection","features":[]}, indent=2))
 
+        # elevation (per-simulation hypsometric) — include if elevation exists, else placeholder
+        elev_val = data.get("elevation")
+        if elev_val and isinstance(elev_val, dict) and elev_val.get("stats"):
+            z.writestr("elevation/elevation.json", json.dumps(elev_val.get("stats", {}), indent=2))
+            # try to include actual PNG if exists
+            try:
+                sim_id = data.get("id", "unknown")
+                from pathlib import Path
+                # Try to find elevation.png
+                candidates = [
+                    Path(f"matsya/matsya/backend/data/simulations/{sim_id}/elevation.png"),
+                    Path(f"backend/data/simulations/{sim_id}/elevation.png"),
+                    Path(f"data/simulations/{sim_id}/elevation.png"),
+                ]
+                found = None
+                for cand in candidates:
+                    if cand.exists():
+                        found = cand
+                        break
+                if found:
+                    z.writestr(f"elevation/elevation.png", found.read_bytes())
+                else:
+                    # placeholder empty png
+                    z.writestr("elevation/elevation.png", b"")
+            except:
+                z.writestr("elevation/elevation.png", b"")
+        else:
+            z.writestr("elevation/elevation.json", json.dumps({}, indent=2))
+            z.writestr("elevation/elevation.png", b"")
+
     buf.seek(0)
     return buf.read()
 

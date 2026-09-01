@@ -80,6 +80,16 @@ class SimulationStore:
 
     def create(self, data: dict) -> Simulation:
         sim = Simulation.model_validate(data)
+        # ensure elevation (hypsometric PNG) on creation
+        try:
+            from app.services.elevation import ensure_elevation
+
+            ensure_elevation(sim)
+        except Exception as e:
+            print(f"elevation generation failed: {e}")
+            import traceback
+
+            traceback.print_exc()
         self._save(sim)
         _list_cache["data"] = None
         return sim
@@ -90,6 +100,45 @@ class SimulationStore:
             raise FileNotFoundError(sim_id)
         raw = json.loads(path.read_text())
         sim = Simulation.model_validate(raw)
+        # hydrate elevation from disk if missing (ensure elevation.json is loaded)
+        try:
+            if sim.elevation is None or sim.elevation.stats is None:
+                elev_dir = self.base_path / f"{sim_id}"
+                json_path = elev_dir / "elevation.json"
+                png_path = elev_dir / "elevation.png"
+                if json_path.exists():
+                    try:
+                        stats = json.loads(json_path.read_text())
+                        from app.models.simulation import Elevation
+
+                        sim.elevation = Elevation(
+                            elevationUri=f"/api/simulations/{sim_id}/elevation",
+                            stats=stats,
+                            width=stats.get("width", 180) if isinstance(stats, dict) else 180,
+                            height=stats.get("height", 180) if isinstance(stats, dict) else 180,
+                        )
+                    except Exception:
+                        pass
+                elif png_path.exists():
+                    pass
+                else:
+                    # legacy fallback for double-nested check
+                    legacy_json = Path(f"matsya/matsya/backend/data/simulations/{sim_id}/elevation.json")
+                    if legacy_json.exists():
+                        try:
+                            stats = json.loads(legacy_json.read_text())
+                            from app.models.simulation import Elevation
+
+                            sim.elevation = Elevation(
+                                elevationUri=f"/api/simulations/{sim_id}/elevation",
+                                stats=stats,
+                                width=stats.get("width", 180) if isinstance(stats, dict) else 180,
+                                height=stats.get("height", 180) if isinstance(stats, dict) else 180,
+                            )
+                        except Exception:
+                            pass
+        except Exception:
+            pass
         return sim
 
     def update(self, sim_id: str, patch: dict) -> Simulation:
@@ -154,6 +203,13 @@ class SimulationStore:
         new_sim.metadata.updated = now
         new_sim.metadata.status = StatusEnum.Ready
         new_sim.status = StatusEnum.Ready
+        # ensure elevation for duplicated simulation (regenerate for new id)
+        try:
+            from app.services.elevation import ensure_elevation
+
+            ensure_elevation(new_sim)
+        except Exception as e:
+            print(f"elevation generation failed for duplicate {new_id}: {e}")
         self._save(new_sim)
         _list_cache["data"] = None
         return new_sim

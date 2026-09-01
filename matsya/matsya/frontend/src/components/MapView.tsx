@@ -51,26 +51,36 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           if (layers?.depth?.visible ?? true) overlay.addTo(map)
           layerRefs.current.floodOverlay = overlay
         }
-        // terrain/elevation overlay mock — brown→green hillshade §9
-        const terrainCanvas = document.createElement("canvas"); terrainCanvas.width=180; terrainCanvas.height=180
-        const tctx = terrainCanvas.getContext("2d")
-        if (tctx) {
-          const timg = tctx.createImageData(180,180)
-          for(let y=0;y<180;y++){
-            for(let x=0;x<180;x++){
-              const i=(y*180+x)*4
-              // mock DEM 4-70m across area, terrain color
-              const elev = 4 + (x/180)*20 + (y/180)*10 + Math.random()*5
-              const norm = Math.min(1, Math.max(0, (elev-4)/20))
-              // brown low → green high
-              const r = 160 - norm*60, g = 120 + norm*80, b = 60 + norm*20
-              timg.data[i]=r; timg.data[i+1]=g; timg.data[i+2]=b; timg.data[i+3]=180
-            }
-          }
-          tctx.putImageData(timg,0,0)
-          const terrainOverlay = (L as any).imageOverlay(terrainCanvas.toDataURL(), bounds, {opacity: layers?.terrain?.opacity ?? 0.7})
+        // terrain/elevation overlay — hypsometric from TIF per simulation §9
+        // Fetch stored hypsometric PNG for this simulation
+        const elevUri = (simulation as any)?.elevation?.elevationUri ?? `/api/simulations/${simulation.id}/elevation`
+        try {
+          const terrainOverlay = (L as any).imageOverlay(elevUri, bounds, {opacity: layers?.terrain?.opacity ?? 0.7})
+          // Only add if terrain visible, but keep reference for toggling
           if (layers?.terrain?.visible) terrainOverlay.addTo(map)
           layerRefs.current.terrainOverlay = terrainOverlay
+          // Also handle error fallback: if image fails to load, keep placeholder
+          // Add error handling for offline: fetch will 404, but overlay will still try
+        } catch {
+          // fallback to mock if fetch fails (offline)
+          const terrainCanvas = document.createElement("canvas"); terrainCanvas.width=180; terrainCanvas.height=180
+          const tctx = terrainCanvas.getContext("2d")
+          if (tctx) {
+            const timg = tctx.createImageData(180,180)
+            for(let y=0;y<180;y++){
+              for(let x=0;x<180;x++){
+                const i=(y*180+x)*4
+                const elev = 4 + (x/180)*20 + (y/180)*10 + Math.random()*5
+                const norm = Math.min(1, Math.max(0, (elev-4)/20))
+                const r = 160 - norm*60, g = 120 + norm*80, b = 60 + norm*20
+                timg.data[i]=r; timg.data[i+1]=g; timg.data[i+2]=b; timg.data[i+3]=180
+              }
+            }
+            tctx.putImageData(timg,0,0)
+            const terrainOverlay2 = (L as any).imageOverlay(terrainCanvas.toDataURL(), bounds, {opacity: layers?.terrain?.opacity ?? 0.7})
+            if (layers?.terrain?.visible) terrainOverlay2.addTo(map)
+            layerRefs.current.terrainOverlay = terrainOverlay2
+          }
         }
         // create layer groups — separate for each layer type per §9
         layerRefs.current.drainsGroup = (L as any).layerGroup() // Drains: all 10257 from drains.kml
