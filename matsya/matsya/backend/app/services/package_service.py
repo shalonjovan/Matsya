@@ -118,6 +118,53 @@ def create_matsya(sim: Simulation) -> bytes:
             z.writestr("elevation/elevation.json", json.dumps({}, indent=2))
             z.writestr("elevation/elevation.png", b"")
 
+        # flood (per-simulation inertial 2D) — include if flood exists, else placeholder
+        flood_val = data.get("flood")
+        if flood_val and isinstance(flood_val, dict) and flood_val.get("stats"):
+            z.writestr("flood/flood.json", json.dumps(flood_val.get("stats", {}), indent=2))
+            # try to include actual PNGs if exists
+            try:
+                sim_id = data.get("id", "unknown")
+                from pathlib import Path
+                steps = flood_val.get("steps")
+                try:
+                    steps = int(steps) if steps is not None else 3
+                except Exception:
+                    steps = 3
+                steps = max(1, min(steps, 73))
+                # candidates directories for flood PNGs
+                base_candidates = []
+                try:
+                    from app.services.simulation_store import store
+                    base_candidates.append(store.base_path / f"{sim_id}" / "flood")
+                except Exception:
+                    pass
+                base_candidates.extend([
+                    Path(f"matsya/matsya/backend/data/simulations/{sim_id}/flood"),
+                    Path(f"backend/data/simulations/{sim_id}/flood"),
+                    Path(f"data/simulations/{sim_id}/flood"),
+                    Path(__file__).resolve().parents[2] / "data" / "simulations" / f"{sim_id}" / "flood",
+                ])
+                for i in range(steps):
+                    found = None
+                    for base in base_candidates:
+                        cand = base / f"{i}.png"
+                        if cand.exists():
+                            found = cand
+                            break
+                    if found:
+                        z.writestr(f"flood/{i}.png", found.read_bytes())
+                    else:
+                        z.writestr(f"flood/{i}.png", b"")
+                # ensure at least flood/0.png exists (if steps handling missed)
+                if steps == 0:
+                    z.writestr("flood/0.png", b"")
+            except Exception:
+                z.writestr("flood/0.png", b"")
+        else:
+            z.writestr("flood/flood.json", json.dumps({}, indent=2))
+            z.writestr("flood/0.png", b"")
+
     buf.seek(0)
     return buf.read()
 

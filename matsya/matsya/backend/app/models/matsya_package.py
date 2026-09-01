@@ -25,6 +25,9 @@ PACKAGE_FILES = [
     # elevation hypsometric per-simulation
     "elevation/elevation.json",
     "elevation/elevation.png",
+    # flood per-simulation inertial 2D
+    "flood/flood.json",
+    "flood/0.png",
 ]
 
 def get_package_structure():
