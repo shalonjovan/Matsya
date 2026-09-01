@@ -237,6 +237,26 @@ class SimulationStore:
         # Ensure metadata updated is exactly now (model_validate may parse string)
         updated_sim.metadata.updated = now
         # Also keep top-level status in sync if needed? Don't force
+        # Recalculate elevation if bbox changed
+        try:
+            old_bbox = existing.area.bbox if hasattr(existing.area, "bbox") else None
+            new_bbox = updated_sim.area.bbox if hasattr(updated_sim.area, "bbox") else None
+            if old_bbox != new_bbox:
+                from app.services.elevation import ensure_elevation
+                ensure_elevation(updated_sim)
+        except Exception as e:
+            print(f"elevation recalc on update failed: {e}")
+        # Recalculate flood if bbox or rainfall changed
+        try:
+            old_rain = existing.rainfall.model_dump() if hasattr(existing, "rainfall") and existing.rainfall else None
+            new_rain = updated_sim.rainfall.model_dump() if hasattr(updated_sim, "rainfall") and updated_sim.rainfall else None
+            old_bbox2 = existing.area.bbox if hasattr(existing.area, "bbox") else None
+            new_bbox2 = updated_sim.area.bbox if hasattr(updated_sim.area, "bbox") else None
+            if old_rain != new_rain or old_bbox2 != new_bbox2:
+                from app.services.flood import ensure_flood
+                ensure_flood(updated_sim)
+        except Exception as e:
+            print(f"flood recalc on update failed: {e}")
         self._save(updated_sim)
         _list_cache["data"] = None
         return updated_sim

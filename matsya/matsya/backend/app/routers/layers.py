@@ -2,6 +2,10 @@ from fastapi import APIRouter, HTTPException, Query
 from app.services.simulation_store import store
 from app.services.hydro.asset_loader import load_assets
 import geopandas as gpd
+import time
+
+# Simple cache for layers GeoJSON — 30s TTL
+_layers_cache = {"drains": {"data": None, "ts": 0}, "waterbodies": {"data": None, "ts": 0}, "rivers": {"data": None, "ts": 0}}
 
 router = APIRouter(prefix="/api", tags=["layers"])
 
@@ -37,20 +41,35 @@ def list_layers(sim_id: str):
 
 @router.get("/layers/drains")
 def get_drains(limit: int = Query(10257, ge=1, le=20000)):
-    """All drains from drains.kml 10257 — for Drains layer"""
+    """All drains from drains.kml 10257 — for Drains layer (cached 30s)"""
+    now = time.time()
+    # Check cache for full data (limit 10257)
+    if limit == 10257 and _layers_cache["drains"]["data"] is not None and (now - _layers_cache["drains"]["ts"] < 30):
+        return _layers_cache["drains"]["data"]
     try:
         data = load_assets("assets")
         gdf = data.get("drains_all")
         if gdf is None or len(gdf)==0:
-            # fallback to micro+macro
             import pandas as pd
             gdf = gpd.GeoDataFrame(pd.concat([data.get("micro", gpd.GeoDataFrame()), data.get("macro", gpd.GeoDataFrame())]), crs="EPSG:4326")
         total = len(gdf)
-        # limit for performance
-        if len(gdf) > limit:
-            gdf = gdf.head(limit)
+        # For cache, store full
+        if limit >= total:
+            # Build full features
+            features=[]
+            for _, row in gdf.iterrows():
+                try:
+                    features.append({"type":"Feature","geometry": row.geometry.__geo_interface__, "properties": {"id": int(row["id"]) if "id" in row and row["id"] is not None else None}})
+                except: pass
+            result = {"type":"FeatureCollection","features":features, "total": total}
+            if limit == 10257:
+                _layers_cache["drains"]["data"] = result
+                _layers_cache["drains"]["ts"] = now
+            return result
+        # limit < total
+        gdf_limited = gdf.head(limit)
         features=[]
-        for _, row in gdf.iterrows():
+        for _, row in gdf_limited.iterrows():
             try:
                 features.append({"type":"Feature","geometry": row.geometry.__geo_interface__, "properties": {"id": int(row["id"]) if "id" in row and row["id"] is not None else None}})
             except: pass
@@ -60,7 +79,14 @@ def get_drains(limit: int = Query(10257, ge=1, le=20000)):
 
 @router.get("/layers/waterbodies")
 def get_waterbodies(limit: int = Query(200, ge=1, le=5000)):
-    """Water bodies from chennai_waterbodies.kml 4086 — for Water layer"""
+    """Water bodies from chennai_waterbodies.kml 4086 — for Water layer (cached 30s)"""
+    now = time.time()
+    if _layers_cache["waterbodies"]["data"] is not None and (now - _layers_cache["waterbodies"]["ts"] < 30):
+        cached = _layers_cache["waterbodies"]["data"]
+        if limit >= cached["total"]:
+            return cached
+        # slice
+        return {"type":"FeatureCollection","features": cached["features"][:limit], "total": cached["total"]}
     try:
         data = load_assets("assets")
         gdf = data.get("waterbodies")
