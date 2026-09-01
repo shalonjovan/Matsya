@@ -41,6 +41,13 @@ export interface HydroConfig {
   graphStats?: any;
 }
 
+export interface Elevation {
+  elevationUri?: string | null;
+  stats?: any;
+  width?: number | null;
+  height?: number | null;
+}
+
 export interface Simulation {
   id: string;
   name: string;
@@ -58,6 +65,7 @@ export interface Simulation {
   boundaries?: any;
   parameters?: any;
   results?: any;
+  elevation?: Elevation | null;
   hydro?: HydroConfig | null;
   metadata?: any;
 }

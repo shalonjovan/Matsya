@@ -189,6 +189,38 @@
         "null"
       ]
     },
+    "elevation": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "properties": {
+        "elevationUri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stats": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "width": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "height": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      }
+    },
     "metadata": {
       "type": "object",
       "properties": {

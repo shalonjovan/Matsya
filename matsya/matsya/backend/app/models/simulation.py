@@ -62,6 +62,13 @@ class HydroConfig(BaseModel):
     graphStats: dict | None = None
 
 
+class Elevation(BaseModel):
+    elevationUri: str | None = None
+    stats: dict | None = None
+    width: int | None = None
+    height: int | None = None
+
+
 class Simulation(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
@@ -78,6 +85,7 @@ class Simulation(BaseModel):
     boundaries: Any | None = None
     parameters: Parameters | None = None
     results: dict | None = None
+    elevation: Elevation | None = None
     hydro: HydroConfig | None = None
     metadata: Metadata = Field(default_factory=Metadata)
     status: StatusEnum = StatusEnum.Ready
