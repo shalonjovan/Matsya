@@ -46,7 +46,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
         </div>
         <div className="w-[360px] shrink-0 border-l bg-white flex flex-col overflow-auto">
           <HydroLayer simId={simulation.id} />
-          <LayerPanel layers={layers} onChange={setLayers} />
+          <LayerPanel layers={layers} onChange={setLayers} simulation={simulation} />
           <PointInspector point={selectedPoint} />
           <WaterbodyInspector waterbodyId={selectedWaterbody} />
           <AffectedAreas simulation={simulation} />

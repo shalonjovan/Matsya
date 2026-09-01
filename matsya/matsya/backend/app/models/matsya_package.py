@@ -22,6 +22,9 @@ PACKAGE_FILES = [
     "hydro/graph.json",
     "hydro/snap.json",
     "hydro/waterbodies.geojson",
+    # elevation hypsometric per-simulation
+    "elevation/elevation.json",
+    "elevation/elevation.png",
 ]
 
 def get_package_structure():
