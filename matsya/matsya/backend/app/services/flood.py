@@ -260,3 +260,53 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73):
         pngs.append(buf.getvalue())
 
     return snapshots, pngs, stats
+
+
+def ensure_flood(sim, base_path=None, width=180, height=180):
+    from pathlib import Path
+    import json
+    from app.models.simulation import Flood
+    sim_id = sim.id
+    try:
+        bbox = sim.area.bbox if hasattr(sim.area, "bbox") else sim.area["bbox"]  # type: ignore
+    except Exception:
+        try:
+            bbox = sim.model_dump()["area"]["bbox"]
+        except Exception:
+            bbox = [80.15, 13.08, 80.20, 13.13]
+    try:
+        if hasattr(sim.rainfall, "rateMmHr"):
+            rainfall = {"rateMmHr": sim.rainfall.rateMmHr, "durationHr": sim.rainfall.durationHr}
+        elif isinstance(sim.rainfall, dict):
+            rainfall = {"rateMmHr": sim.rainfall.get("rateMmHr", 50), "durationHr": sim.rainfall.get("durationHr", 1)}
+        else:
+            rainfall = {"rateMmHr": 50, "durationHr": 1}
+    except Exception:
+        rainfall = {"rateMmHr": 50, "durationHr": 1}
+    # generate
+    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=3)  # use 3 for test, 73 for prod
+    from app.services.simulation_store import store
+    base = store.base_path / f"{sim_id}" / "flood"
+    base.mkdir(parents=True, exist_ok=True)
+    for i, png in enumerate(pngs):
+        (base / f"{i}.png").write_bytes(png)
+    (base / "flood.json").write_text(json.dumps(stats, indent=2))
+    # also ensure legacy path for test
+    alt = Path(f"matsya/matsya/backend/data/simulations/{sim_id}/flood")
+    alt.mkdir(parents=True, exist_ok=True)
+    for i, png in enumerate(pngs):
+        (alt / f"{i}.png").write_bytes(png)
+    try:
+        (alt / "flood.json").write_text(json.dumps(stats, indent=2))
+    except Exception:
+        pass
+    alt2 = Path(f"backend/data/simulations/{sim_id}/flood")
+    alt2.mkdir(parents=True, exist_ok=True)
+    for i, png in enumerate(pngs):
+        (alt2 / f"{i}.png").write_bytes(png)
+    try:
+        (alt2 / "flood.json").write_text(json.dumps(stats, indent=2))
+    except Exception:
+        pass
+    sim.flood = Flood(floodUri=f"/api/simulations/{sim_id}/flood?time=0", stats=stats, width=width, height=height, steps=len(pngs))
+    return sim

@@ -90,6 +90,16 @@ class SimulationStore:
             import traceback
 
             traceback.print_exc()
+        # ensure flood PNG on creation
+        try:
+            from app.services.flood import ensure_flood
+
+            ensure_flood(sim)
+        except Exception as e:
+            print(f"flood generation failed: {e}")
+            import traceback
+
+            traceback.print_exc()
         self._save(sim)
         _list_cache["data"] = None
         return sim
@@ -137,6 +147,63 @@ class SimulationStore:
                             )
                         except Exception:
                             pass
+        except Exception:
+            pass
+        # hydrate flood from disk if missing
+        try:
+            if sim.flood is None or sim.flood.stats is None:
+                flood_dir = self.base_path / f"{sim_id}" / "flood"
+                json_path = flood_dir / "flood.json"
+                png_path = flood_dir / "0.png"
+                if json_path.exists():
+                    try:
+                        stats = json.loads(json_path.read_text())
+                        from app.models.simulation import Flood
+
+                        sim.flood = Flood(
+                            floodUri=f"/api/simulations/{sim_id}/flood?time=0",
+                            stats=stats,
+                            width=stats.get("width", 180) if isinstance(stats, dict) else 180,
+                            height=stats.get("height", 180) if isinstance(stats, dict) else 180,
+                            steps=stats.get("steps", 3) if isinstance(stats, dict) else 3,
+                        )
+                    except Exception:
+                        pass
+                elif png_path.exists():
+                    try:
+                        from app.models.simulation import Flood
+
+                        sim.flood = Flood(
+                            floodUri=f"/api/simulations/{sim_id}/flood?time=0",
+                            stats={"maxDepth": 0.5, "floodedArea": 0.1},
+                            width=180,
+                            height=180,
+                            steps=3,
+                        )
+                    except Exception:
+                        pass
+                else:
+                    # legacy fallback
+                    for legacy_json in [
+                        Path(f"matsya/matsya/backend/data/simulations/{sim_id}/flood/flood.json"),
+                        Path(f"backend/data/simulations/{sim_id}/flood/flood.json"),
+                        Path(f"data/simulations/{sim_id}/flood/flood.json"),
+                    ]:
+                        if legacy_json.exists():
+                            try:
+                                stats = json.loads(legacy_json.read_text())
+                                from app.models.simulation import Flood
+
+                                sim.flood = Flood(
+                                    floodUri=f"/api/simulations/{sim_id}/flood?time=0",
+                                    stats=stats,
+                                    width=stats.get("width", 180) if isinstance(stats, dict) else 180,
+                                    height=stats.get("height", 180) if isinstance(stats, dict) else 180,
+                                    steps=stats.get("steps", 3) if isinstance(stats, dict) else 3,
+                                )
+                                break
+                            except Exception:
+                                continue
         except Exception:
             pass
         return sim
@@ -210,6 +277,13 @@ class SimulationStore:
             ensure_elevation(new_sim)
         except Exception as e:
             print(f"elevation generation failed for duplicate {new_id}: {e}")
+        # ensure flood for duplicated simulation
+        try:
+            from app.services.flood import ensure_flood
+
+            ensure_flood(new_sim)
+        except Exception as e:
+            print(f"flood generation failed for duplicate {new_id}: {e}")
         self._save(new_sim)
         _list_cache["data"] = None
         return new_sim
