@@ -42,7 +42,9 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OSM Hot"}).addTo(map)
         // flood overlay from TIF per simulation + time — Flood depth §9
         const timeIdx = time ?? 0
-        const floodUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx}`
+        const floodVersion = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
+        const baseFloodUri = (simulation as any)?.flood?.floodUri ? (simulation as any).flood.floodUri.split("?")[0] : `/api/simulations/${simulation.id}/flood`
+        const floodUri = `${baseFloodUri}?time=${timeIdx}&v=${encodeURIComponent(String(floodVersion))}`
         try {
           try { fetch(floodUri).catch(()=>{}) } catch {}
           const floodOverlay = (L as any).imageOverlay(floodUri, bounds, {opacity: layers?.depth?.opacity ?? 0.6})
@@ -62,8 +64,10 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           }
         }
         // terrain/elevation overlay — hypsometric from TIF per simulation §9
-        // Fetch stored hypsometric PNG for this simulation
-        const elevUri = (simulation as any)?.elevation?.elevationUri ?? `/api/simulations/${simulation.id}/elevation`
+        // Fetch stored hypsometric PNG for this simulation with cache busting via updated timestamp
+        const elevVersion = (simulation as any)?.elevation?.stats?.mean ?? (simulation as any)?.metadata?.updated ?? Date.now()
+        const baseElevUri = (simulation as any)?.elevation?.elevationUri ?? `/api/simulations/${simulation.id}/elevation`
+        const elevUri = `${baseElevUri}${baseElevUri.includes("?") ? "&" : "?"}v=${encodeURIComponent(String(elevVersion))}`
         try {
           const terrainOverlay = (L as any).imageOverlay(elevUri, bounds, {opacity: layers?.terrain?.opacity ?? 0.7})
           // Only add if terrain visible, but keep reference for toggling
@@ -207,7 +211,8 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
     if (layerRefs.current.floodOverlay) {
       try {
         const timeIdx2 = time ?? 0
-        const newUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx2}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx2}`
+        const floodVersion2 = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
+        const newUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx2}&v=${encodeURIComponent(String(floodVersion2))}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx2}&v=${encodeURIComponent(String(floodVersion2))}`
         if (layerRefs.current.floodOverlay._url !== newUri) {
           try { fetch(newUri).catch(()=>{}) } catch {}
           try { layerRefs.current.floodOverlay.setUrl(newUri) } catch {}
