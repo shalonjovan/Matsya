@@ -7,6 +7,8 @@ export default function LayerPanel({ layers, onChange, simulation }: any) {
     const next={...local, [k]:{...local[k], ...patch}}
     setLocal(next); onChange?.(next)
   }
+  const floodStats = simulation?.flood?.stats || simulation?.elevation?.stats
+  const floodLegend = floodStats ? `${floodStats.min?.toFixed?.(2) ?? "0"}→${floodStats.max?.toFixed?.(2) ?? floodStats.maxDepth?.toFixed?.(2) ?? "1.0"}m` : "0→0.05 light, 0.3 medium, 1.0 dark"
   const groups = [
     {id:"depth", label:"Flood depth", unit:"m", layers:["depth","velocity","direction","arrival","duration","hazard"]},
     {id:"terrain", label:"Elevation", unit:"m", layers:["elevation"]},
@@ -29,7 +31,7 @@ export default function LayerPanel({ layers, onChange, simulation }: any) {
             <input type="range" min={0} max={1} step={0.1} value={local[g.id]?.opacity ?? 0.8} onChange={e=>update(g.id,{opacity:parseFloat(e.target.value)})} className="w-16" title="Opacity" />
           </div>
           <div className="text-xs text-slate-400 ml-6">
-            {g.layers.join(", ")} — {g.id==="terrain" && simulation?.elevation?.stats ? `legend: ${simulation.elevation.stats.min.toFixed(1)}m → ${simulation.elevation.stats.max.toFixed(1)}m hypsometric` : g.id==="terrain" ? "legend: hypsometric tint per TIF" : "legend: 0→0.05 light, 0.3 medium, 1.0 dark"}
+            {g.layers.join(", ")} — {g.id==="terrain" && simulation?.elevation?.stats ? `legend: ${simulation.elevation.stats.min.toFixed(1)}m → ${simulation.elevation.stats.max.toFixed(1)}m hypsometric` : g.id==="terrain" ? "legend: hypsometric tint per TIF" : g.id==="depth" ? `legend: ${floodLegend}` : "legend: 0→0.05 light, 0.3 medium, 1.0 dark"}
           </div>
         </div>
       ))}

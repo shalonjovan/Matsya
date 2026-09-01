@@ -11,4 +11,9 @@ describe("LayerPanel",()=>{
     fireEvent.click(cb)
     expect(cb.checked).toBe(false)
   })
+  it("legend shows maxDepth", ()=>{
+    const sim:any={id:"1", flood:{stats:{maxDepth:1.2, floodedArea:0.5}}}
+    render(<LayerPanel layers={{depth:{visible:true,opacity:0.8}}} simulation={sim} />)
+    expect(screen.getByText(/1.2/)).toBeInTheDocument()
+  })
 })
