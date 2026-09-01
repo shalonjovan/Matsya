@@ -7,15 +7,28 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const layerRefs = useRef<any>({})
+  // Track current simulation id to detect changes
+  const prevSimIdRef = useRef<string | null>(null)
   useEffect(()=>{
     if (!divRef.current) return
+    // If map exists but simulation changed, teardown and recreate
+    const simId = simulation?.id ?? "default"
     if (mapRef.current) {
-      // update existing map bounds if simulation changes
-      const bbox = simulation?.area?.bbox ?? [80.15,13.08,80.20,13.13]
-      const bounds: any = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
-      try { mapRef.current.fitBounds(bounds) } catch {}
-      return
+      if (prevSimIdRef.current === simId) {
+        // same sim, just update bounds
+        const bbox = simulation?.area?.bbox ?? [80.15,13.08,80.20,13.13]
+        const bounds: any = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
+        try { mapRef.current.fitBounds(bounds) } catch {}
+        return
+      } else {
+        // different sim - teardown old map
+        try { mapRef.current.remove() } catch {}
+        mapRef.current = null
+        layerRefs.current = {}
+        // will fall through to create new map
+      }
     }
+    prevSimIdRef.current = simId
     let cancelled = false
     let map: any = null
     const init = async () => {
@@ -90,7 +103,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         })
         mapRef.current = map
         // Drains layer: all drains from drains.kml 10257 — for Drainage group
-        fetch("/api/layers/drains?limit=200").then(r=>r.json()).then(g=>{
+        fetch("/api/layers/drains?limit=10257").then(r=>r.json()).then(g=>{
           try{
             const feats = g.features || []
             feats.forEach((f:any)=>{
@@ -125,7 +138,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           }catch{}
         }).catch(()=>{})
         // Water layer: all waterbodies 4086 from chennai_waterbodies.kml — for Water group
-        fetch("/api/layers/waterbodies?limit=200").then(r=>r.json()).then(g=>{
+        fetch("/api/layers/waterbodies?limit=4086").then(r=>r.json()).then(g=>{
           try{
             const feats = g.features || []
             feats.forEach((f:any)=>{
@@ -153,8 +166,16 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       }
     }
     init()
-    return ()=>{ cancelled = true; if (map) { try{ map.remove() }catch{} } }
-  },[simulation])
+    return ()=>{ 
+      cancelled = true; 
+      if (map) { try{ map.remove() }catch{} }
+      // also cleanup mapRef if this is unmount
+      if (mapRef.current === map) {
+        mapRef.current = null
+        layerRefs.current = {}
+      }
+    }
+  },[simulation?.id])
 
   // react to layers visibility/opacity and time
   useEffect(()=>{

@@ -35,7 +35,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
       <div className="flex flex-1 overflow-hidden border rounded-xl shadow min-h-0">
         <div className="flex-1 relative bg-slate-900 min-h-0 min-w-0">
           <div className="absolute inset-0">
-            <MapView simulation={simulation} layers={layers} time={time} onPointSelect={setSelectedPoint} onWaterbodySelect={setSelectedWaterbody} />
+            <MapView key={simulation.id} simulation={simulation} layers={layers} time={time} onPointSelect={setSelectedPoint} onWaterbodySelect={setSelectedWaterbody} />
           </div>
           <div className="absolute top-2 left-2 z-[400] w-64">
             <SearchBar />

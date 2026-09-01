@@ -1,5 +1,6 @@
 import json
 import uuid
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
@@ -8,6 +9,9 @@ from pydantic import ValidationError
 
 from app.models.simulation import Simulation, StatusEnum
 from app.config import settings
+
+# Simple cache for list() — 5s TTL
+_list_cache = {"data": None, "ts": 0, "count": 0}
 
 
 def _resolve_storage_path(raw: str | Path | None = None) -> Path:
@@ -41,12 +45,25 @@ class SimulationStore:
         path.write_text(json.dumps(data, indent=2))
 
     def list(self) -> List[Simulation]:
+        # Check cache (5s TTL, also invalidate if file count changed)
+        now = time.time()
+        try:
+            file_count = len(list(self.base_path.glob("*.json"))) if self.base_path.exists() else 0
+        except:
+            file_count = 0
+        if _list_cache["data"] is not None and (now - _list_cache["ts"] < 5) and _list_cache["count"] == file_count:
+            return _list_cache["data"]
         sims: List[Simulation] = []
         if not self.base_path.exists():
+            _list_cache["data"] = sims
+            _list_cache["ts"] = now
+            _list_cache["count"] = file_count
             return sims
+        # Use faster file reading and minimal validation for list (summary only)
         for f in self.base_path.glob("*.json"):
             try:
                 raw = json.loads(f.read_text())
+                # For list, we don't need full validation of all fields, just basic
                 sim = Simulation.model_validate(raw)
                 sims.append(sim)
             except Exception:
@@ -56,11 +73,15 @@ class SimulationStore:
             sims.sort(key=lambda s: s.metadata.updated, reverse=True)
         except Exception:
             pass
+        _list_cache["data"] = sims
+        _list_cache["ts"] = now
+        _list_cache["count"] = file_count
         return sims
 
     def create(self, data: dict) -> Simulation:
         sim = Simulation.model_validate(data)
         self._save(sim)
+        _list_cache["data"] = None
         return sim
 
     def get(self, sim_id: str) -> Simulation:
@@ -101,6 +122,7 @@ class SimulationStore:
         updated_sim.metadata.updated = now
         # Also keep top-level status in sync if needed? Don't force
         self._save(updated_sim)
+        _list_cache["data"] = None
         return updated_sim
 
     def delete(self, sim_id: str) -> None:
@@ -108,6 +130,7 @@ class SimulationStore:
         if not path.exists():
             raise FileNotFoundError(sim_id)
         path.unlink()
+        _list_cache["data"] = None
 
     def duplicate(self, sim_id: str, name: str | None = None) -> Simulation:
         orig = self.get(sim_id)
@@ -132,6 +155,7 @@ class SimulationStore:
         new_sim.metadata.status = StatusEnum.Ready
         new_sim.status = StatusEnum.Ready
         self._save(new_sim)
+        _list_cache["data"] = None
         return new_sim
 
 

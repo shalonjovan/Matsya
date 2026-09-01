@@ -95,7 +95,7 @@ function App() {
         {showSelect || !worldId ? (
           <SelectSimulation onOpen={handleOpen} onCreate={handleCreate} onEdit={handleEdit} />
         ) : currentSim ? (
-          <MapShell simulation={currentSim} />
+          <MapShell key={currentSim.id} simulation={currentSim} />
         ) : (
           <div className="p-6 bg-white rounded-xl shadow border">
             <h2 className="text-xl font-semibold">World {worldId}</h2>

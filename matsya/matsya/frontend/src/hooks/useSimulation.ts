@@ -67,16 +67,27 @@ export async function renameSimulation(id: string, name: string): Promise<Simula
   return res.json()
 }
 
+// Simple in-memory cache for simulations list — 30s staleTime
+let simCache: { data: Simulation[] | null, ts: number } = { data: null, ts: 0 }
+const CACHE_TTL = 30000 // 30s
+
 export function useSimulations() {
-  const [data, setData] = useState<Simulation[] | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<Simulation[] | null>(simCache.data)
+  const [loading, setLoading] = useState(simCache.data === null)
   const [error, setError] = useState<string | null>(null)
 
-  const refetch = useCallback(async () => {
+  const refetch = useCallback(async (force=false) => {
+    const now = Date.now()
+    if (!force && simCache.data && (now - simCache.ts < CACHE_TTL)) {
+      setData(simCache.data)
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     try {
       const sims = await fetchSimulations()
+      simCache = { data: sims, ts: now }
       setData(sims)
     } catch (e: any) {
       setError(e?.message ?? "failed to fetch")
@@ -90,7 +101,10 @@ export function useSimulations() {
     refetch()
   }, [refetch])
 
-  return { data, loading, error, refetch, setData }
+  // Also invalidate cache on mutations
+  const refetchForce = useCallback(()=> refetch(true), [refetch])
+
+  return { data, loading, error, refetch: refetchForce, setData }
 }
 
 // also export singular alias for spec compatibility
