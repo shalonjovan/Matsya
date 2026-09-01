@@ -59,23 +59,28 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           if (layers?.terrain?.visible) terrainOverlay.addTo(map)
           layerRefs.current.terrainOverlay = terrainOverlay
         }
-        // create layer groups
-        layerRefs.current.drainLayers = (L as any).layerGroup() // drainage + hydro drains
-        layerRefs.current.waterbodyLayers = (L as any).layerGroup()
+        // create layer groups — separate for each layer type per §9
+        layerRefs.current.drainsGroup = (L as any).layerGroup() // Drains: all 10257 from drains.kml
+        layerRefs.current.hydroDrainsGroup = (L as any).layerGroup() // Hydro: micro+macro 52
+        layerRefs.current.hydroWaterbodyLayers = (L as any).layerGroup() // Hydro waterbodies sample 50
+        layerRefs.current.waterGroup = (L as any).layerGroup() // Water: chennai_waterbodies 4086
         layerRefs.current.riverLayers = (L as any).layerGroup()
-        layerRefs.current.waterGroup = (L as any).layerGroup()
+        layerRefs.current.waterbodyLayers = layerRefs.current.hydroWaterbodyLayers // alias for backward compat
+        layerRefs.current.drainLayers = layerRefs.current.drainsGroup // alias
         layerRefs.current.infraGroup = (L as any).layerGroup()
-        // add groups to map initially based on visibility — flood and hydro already, drainage shares drainLayers
-        const hydroVisibleInit = layers?.hydro?.visible ?? true
-        const drainageVisibleInit = layers?.drainage?.visible ?? true
-        const terrainVisibleInit = layers?.terrain?.visible ?? false
-        if (hydroVisibleInit || drainageVisibleInit) {
-          layerRefs.current.drainLayers.addTo(map)
+        // add groups to map initially based on visibility
+        if (layers?.drainage?.visible ?? true) {
+          layerRefs.current.drainsGroup.addTo(map)
         }
-        if (hydroVisibleInit) {
-          layerRefs.current.waterbodyLayers.addTo(map)
+        if (layers?.hydro?.visible ?? true) {
+          layerRefs.current.hydroDrainsGroup.addTo(map)
+          layerRefs.current.hydroWaterbodyLayers.addTo(map)
           layerRefs.current.riverLayers.addTo(map)
         }
+        if (layers?.water?.visible ?? true) {
+          layerRefs.current.waterGroup.addTo(map)
+        }
+        const terrainVisibleInit = layers?.terrain?.visible ?? false
         if (terrainVisibleInit && layerRefs.current.terrainOverlay) {
           // already added above if visible
         }
@@ -84,26 +89,51 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           fetch(`/api/simulations/${simulation.id}/point?lat=${lat}&lon=${lon}&time=${time}`).then(r=>r.json()).then(j=>onPointSelect?.(j)).catch(()=>onPointSelect?.({lat,lon, elevation:15.5, floodDepth:0.42, velocity:0.3}))
         })
         mapRef.current = map
-        // hydro: fetch and draw drains->waterbodies
+        // Drains layer: all drains from drains.kml 10257 — for Drainage group
+        fetch("/api/layers/drains?limit=200").then(r=>r.json()).then(g=>{
+          try{
+            const feats = g.features || []
+            feats.forEach((f:any)=>{
+              let latlngs: any[] = []
+              if (f.geometry.type==="LineString") latlngs = f.geometry.coordinates.map((c:any)=>[c[1], c[0]])
+              else if (f.geometry.type==="MultiLineString") latlngs = f.geometry.coordinates[0].map((c:any)=>[c[1], c[0]])
+              if(latlngs.length) (L as any).polyline(latlngs, {color:"#6366f1", weight:1.5, opacity:0.6}).addTo(layerRefs.current.drainsGroup)
+            })
+          }catch{}
+        }).catch(()=>{})
+        // Hydro layer: micro+macro 52 drains→waterbodies — for Hydro group
         fetch("/api/hydro/graph").then(r=>r.json()).then(g=>{
           try{
             const drains = g.drains?.features || []
             const wbs = g.waterbodies?.features || []
-            // waterbodies polygons — add to waterbodyLayers group
+            // hydro waterbodies (small sample) — add to hydroWaterbody group
             wbs.slice(0,50).forEach((f:any)=>{
               const latlngs = f.geometry.coordinates[0].map((c:any)=>[c[1], c[0]])
               const poly = (L as any).polygon(latlngs, {color:"#3b82f6", weight:1, fillColor:"#3b82f6", fillOpacity:0.2})
               poly.on("click", ()=> onWaterbodySelect?.(String(f.properties.id)))
-              poly.addTo(layerRefs.current.waterbodyLayers)
+              poly.addTo(layerRefs.current.hydroWaterbodyLayers)
             })
-            // drains with arrow color by target — add to drainLayers group
+            // hydro drains with arrow color by target — add to hydroDrains group
             drains.slice(0,100).forEach((f:any)=>{
               const target = f.properties.target || "sea"
               const color = drainColor(target)
               let latlngs: any[] = []
               if (f.geometry.type==="LineString") latlngs = f.geometry.coordinates.map((c:any)=>[c[1], c[0]])
               else if (f.geometry.type==="MultiLineString") latlngs = f.geometry.coordinates[0].map((c:any)=>[c[1], c[0]])
-              if(latlngs.length) (L as any).polyline(latlngs, {color, weight:2, opacity:0.7}).addTo(layerRefs.current.drainLayers)
+              if(latlngs.length) (L as any).polyline(latlngs, {color, weight:2, opacity:0.7}).addTo(layerRefs.current.hydroDrainsGroup)
+            })
+          }catch{}
+        }).catch(()=>{})
+        // Water layer: all waterbodies 4086 from chennai_waterbodies.kml — for Water group
+        fetch("/api/layers/waterbodies?limit=200").then(r=>r.json()).then(g=>{
+          try{
+            const feats = g.features || []
+            feats.forEach((f:any)=>{
+              let latlngs: any[] = []
+              // waterbodies are Polygon
+              if (f.geometry.type==="Polygon") latlngs = f.geometry.coordinates[0].map((c:any)=>[c[1], c[0]])
+              else if (f.geometry.type==="MultiPolygon") latlngs = f.geometry.coordinates[0][0].map((c:any)=>[c[1], c[0]])
+              if(latlngs.length) (L as any).polygon(latlngs, {color:"#0ea5e9", weight:1, fillColor:"#0ea5e9", fillOpacity:0.15}).addTo(layerRefs.current.waterGroup)
             })
           }catch{}
         }).catch(()=>{})
@@ -158,23 +188,33 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         }
       } catch {}
     }
-    // drainage: drainLayers — §9 Drainage (micro/macro) — independent toggle
+    // drainage: drainsGroup (10257) — §9 Drainage
     const drainageVisible = layers?.drainage?.visible ?? true
     const drainageOpacity = layers?.drainage?.opacity ?? 0.7
-    if (layerRefs.current.drainLayers) {
+    if (layerRefs.current.drainsGroup) {
+      try {
+        if (drainageVisible) {
+          if (!map.hasLayer(layerRefs.current.drainsGroup)) layerRefs.current.drainsGroup.addTo(map)
+          layerRefs.current.drainsGroup.eachLayer((l:any)=>{ if(l.setStyle) l.setStyle({opacity: drainageOpacity}) })
+        } else {
+          if (map.hasLayer(layerRefs.current.drainsGroup)) map.removeLayer(layerRefs.current.drainsGroup)
+        }
+      } catch {}
+    }
+    // keep alias drainLayers in sync
+    if (layerRefs.current.drainLayers && layerRefs.current.drainLayers !== layerRefs.current.drainsGroup) {
       try {
         if (drainageVisible) {
           if (!map.hasLayer(layerRefs.current.drainLayers)) layerRefs.current.drainLayers.addTo(map)
-          layerRefs.current.drainLayers.eachLayer((l:any)=>{ if(l.setStyle) l.setStyle({opacity: drainageOpacity}) })
         } else {
           if (map.hasLayer(layerRefs.current.drainLayers)) map.removeLayer(layerRefs.current.drainLayers)
         }
       } catch {}
     }
-    // hydro: waterbodies + river flow — §9 Hydro
+    // hydro: hydroDrains + hydroWaterbody + river flow — §9 Hydro
     const hydroVisible = layers?.hydro?.visible ?? true
     const hydroOpacity = layers?.hydro?.opacity ?? 0.7
-    ;["waterbodyLayers","riverLayers"].forEach(key=>{
+    ;["hydroDrainsGroup","hydroWaterbodyLayers","riverLayers","waterbodyLayers"].forEach(key=>{
       const group = layerRefs.current[key]
       if (!group) return
       try {

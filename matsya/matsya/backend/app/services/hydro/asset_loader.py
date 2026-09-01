@@ -25,6 +25,7 @@ EXPECTED = {
     "buckingham": 5,
     "krishna": 1,
     "waterbodies": 4000,  # 4086 Placemark
+    "drains_all": 10000,  # 10257 legacy drains.kml for Drains layer
 }
 
 def _kml_to_gdf(path: pathlib.Path) -> "gpd.GeoDataFrame":
@@ -194,6 +195,7 @@ def load_assets(base="assets") -> dict:
         "buckingham": ["Channai_basin_Buckingham_canal.kml", "Chennai_Basin_Buckingham_canal.kml"],
         "krishna": ["Chennai_Basin_Krishna_Water_Canal.kml", "Chennai_Basin_Krishna_Water_Canal.kml"],
         "waterbodies": ["chennai_waterbodies.kml", "Chennai_Waterbodies.kml"],
+        "drains_all": ["drains.kml", "Drains.kml"],
     }
     for key, candidates in file_map.items():
         found=None
