@@ -49,7 +49,38 @@
             "object",
             "null"
           ],
-          "description": "Optional GeoJSON polygon"
+          "description": "Optional GeoJSON polygon",
+          "examples": [
+            [
+              {
+                "type": "Polygon",
+                "coordinates": [
+                  [
+                    [
+                      80.15,
+                      13.08
+                    ],
+                    [
+                      80.2,
+                      13.08
+                    ],
+                    [
+                      80.2,
+                      13.13
+                    ],
+                    [
+                      80.15,
+                      13.13
+                    ],
+                    [
+                      80.15,
+                      13.08
+                    ]
+                  ]
+                ]
+              }
+            ]
+          ]
         }
       }
     },
