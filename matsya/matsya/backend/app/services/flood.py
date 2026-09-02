@@ -121,7 +121,7 @@ def _dem_for_bbox(bbox, width, height):
     return arr.astype(float)
 
 
-def generate_flood(bbox, rainfall, width=180, height=180, steps=73):
+def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None):
     """Generate flood snapshots per bbox+rainfall using DEM low spots.
 
     Args:
