@@ -54,10 +54,10 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
-  const [areaMode, setAreaMode] = useState<"search"|"rect"|"poly"|"chennai">("search")
-  const drawMapRef = useRef<HTMLDivElement>(null)
-  const drawMapInstance = useRef<any>(null)
-  const drawLayerRef = useRef<any>(null)
+  const [areaMode, setAreaMode] = useState<"search"|"rect"|"chennai">("search")
+  const rectMapRef = useRef<HTMLDivElement>(null)
+  const rectMapInstance = useRef<any>(null)
+  const rectLayerRef = useRef<any>(null)
 
   // Sync when editSim changes
   useEffect(()=>{
@@ -73,9 +73,9 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
     }
   },[editSim])
 
-  // Initialize draw map when polygon tab is active
+  // Initialize draw map when rect tab is active — rectangle draw
   useEffect(()=>{
-    if (!open || areaMode!=="poly" || !drawMapRef.current) return
+    if (!open || areaMode!=="rect" || !rectMapRef.current) return
     let cancelled=false
     const init = async()=>{
       const L = await import("leaflet")
@@ -84,61 +84,86 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
       await import("leaflet/dist/leaflet.css")
       // @ts-ignore
       await import("leaflet-draw/dist/leaflet.draw.css")
-      if (cancelled || !drawMapRef.current) return
-      if (drawMapInstance.current) {
-        try { drawMapInstance.current.remove() } catch {}
+      if (cancelled || !rectMapRef.current) return
+      if (rectMapInstance.current) {
+        try { rectMapInstance.current.remove() } catch {}
       }
-      const map = L.map(drawMapRef.current).setView([13.08,80.17], 11)
+      const map = L.map(rectMapRef.current).setView([13.08,80.17], 11)
       L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OSM"}).addTo(map)
       const drawnItems = new (L as any).FeatureGroup()
       map.addLayer(drawnItems)
-      drawLayerRef.current = drawnItems
-      // Restore existing polygon if any
+      rectLayerRef.current = drawnItems
+      // Restore existing bbox as rectangle if any and no polygon
+      if (!polygon && bboxValid) {
+        try {
+          const bounds: any = [[parseFloat(minLat), parseFloat(minLon)], [parseFloat(maxLat), parseFloat(maxLon)]]
+          const rect = (L as any).rectangle(bounds, {color:"#3388ff", weight:2})
+          drawnItems.addLayer(rect)
+        } catch {}
+      }
+      // Restore polygon (Chennai) if exists — show as overlay but not editable via rect
       if (polygon) {
         try {
-          const layer = L.geoJSON({type:"Feature", geometry: polygon} as any).getLayers()[0]
+          const layer = L.geoJSON({type:"Feature", geometry: polygon} as any, {style:{color:"#10b981", weight:2, fillOpacity:0.2}}).getLayers()[0]
           if (layer) drawnItems.addLayer(layer as any)
         } catch {}
       }
       const drawControl = new (L as any).Control.Draw({
-        draw: { polygon: { allowIntersection: false, showArea: true }, rectangle: false, circle: false, marker: false, circlemarker: false, polyline: false },
+        draw: { rectangle: { showArea: true }, polygon: false, circle: false, marker: false, circlemarker: false, polyline: false },
         edit: { featureGroup: drawnItems }
       })
       map.addControl(drawControl)
       map.on((L as any).Draw.Event.CREATED, (e:any)=>{
-        drawnItems.clearLayers()
-        drawnItems.addLayer(e.layer)
-        const gj = (e.layer as any).toGeoJSON()
-        const poly = gj.geometry
-        setPolygon(poly)
-        const bbox = bboxFromPolygon(poly)
-        setMinLon(String(bbox[0].toFixed(5))); setMinLat(String(bbox[1].toFixed(5))); setMaxLon(String(bbox[2].toFixed(5))); setMaxLat(String(bbox[3].toFixed(5)))
+        // Only rectangle
+        if (e.layerType === "rectangle") {
+          drawnItems.clearLayers()
+          drawnItems.addLayer(e.layer)
+          const bounds = (e.layer as any).getBounds()
+          setMinLon(String(bounds.getWest().toFixed(5)))
+          setMaxLon(String(bounds.getEast().toFixed(5)))
+          setMinLat(String(bounds.getSouth().toFixed(5)))
+          setMaxLat(String(bounds.getNorth().toFixed(5)))
+          setPolygon(null)
+        }
       })
       map.on((L as any).Draw.Event.EDITED, (e:any)=>{
         const layers = e.layers.getLayers()
         if (layers.length>0) {
-          const gj = (layers[0] as any).toGeoJSON()
-          const poly = gj.geometry
-          setPolygon(poly)
-          const bbox = bboxFromPolygon(poly)
-          setMinLon(String(bbox[0].toFixed(5))); setMinLat(String(bbox[1].toFixed(5))); setMaxLon(String(bbox[2].toFixed(5))); setMaxLat(String(bbox[3].toFixed(5)))
+          const layer = layers[0] as any
+          if (layer.getBounds) {
+            const bounds = layer.getBounds()
+            setMinLon(String(bounds.getWest().toFixed(5)))
+            setMaxLon(String(bounds.getEast().toFixed(5)))
+            setMinLat(String(bounds.getSouth().toFixed(5)))
+            setMaxLat(String(bounds.getNorth().toFixed(5)))
+            setPolygon(null)
+          } else if (layer.toGeoJSON) {
+            const gj = layer.toGeoJSON()
+            const poly = gj.geometry
+            if (poly.type==="Polygon") {
+              setPolygon(poly)
+              const bbox = bboxFromPolygon(poly)
+              setMinLon(String(bbox[0].toFixed(5))); setMinLat(String(bbox[1].toFixed(5))); setMaxLon(String(bbox[2].toFixed(5))); setMaxLat(String(bbox[3].toFixed(5)))
+            }
+          }
         }
       })
       map.on((L as any).Draw.Event.DELETED, ()=>{
-        setPolygon(null)
+        // keep bbox as is, clear polygon if it was Chennai
+        // don't clear bbox
       })
       setTimeout(()=>{ try{ map.invalidateSize()}catch{} },200)
-      drawMapInstance.current = map
+      rectMapInstance.current = map
     }
     init()
     return ()=>{
       cancelled=true
-      if (drawMapInstance.current) {
-        try { drawMapInstance.current.remove() } catch {}
-        drawMapInstance.current=null
+      if (rectMapInstance.current) {
+        try { rectMapInstance.current.remove() } catch {}
+        rectMapInstance.current=null
       }
     }
-  },[open, areaMode, polygon])
+  },[open, areaMode])
 
   if (!open) return null
 
@@ -277,7 +302,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
             <div className="space-y-4">
               <h4 className="font-medium">Geographic area — free-form, search, or Chennai entirety</h4>
               <div className="flex gap-2 text-xs">
-                {["search","rect","poly","chennai"].map(m=>(
+                {["search","rect","chennai"].map(m=>(
                   <button key={m} onClick={()=>setAreaMode(m as any)} className={`flex-1 py-2 rounded capitalize ${areaMode===m ? "bg-emerald-600 text-white" : "bg-slate-100"}`}>{m}</button>
                 ))}
               </div>
@@ -311,20 +336,14 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                     <label>Max Lat <input value={maxLat} onChange={e=>{setMaxLat(e.target.value); setPolygon(null)}} className="w-full border rounded px-2 py-1 font-mono" /></label>
                   </div>
                   {!bboxValid && <span className="text-red-500 text-xs">Invalid bbox</span>}
-                  <p className="text-xs text-slate-500">Rectangular — old mode, still supported. Polygons take precedence if drawn.</p>
-                </div>
-              )}
-
-              {areaMode==="poly" && (
-                <div className="space-y-2">
-                  <div ref={drawMapRef} data-testid="draw-map" className="w-full h-[300px] border rounded bg-slate-100" />
+                  <div ref={rectMapRef} data-testid="rect-map" className="w-full h-[300px] border rounded bg-slate-100" />
                   <div className="flex justify-between text-xs">
-                    <span>Draw polygon by clicking/dragging on map, use edit toolbar to modify.</span>
-                    {polygon && <span className="font-mono">Area ~{polygonArea} km² • {polygon.coordinates[0].length} points</span>}
+                    <span>Draw rectangle on map (drag) or edit inputs — both set BBox. Use toolbar to draw/edit.</span>
+                    <span className="font-mono">BBox {bbox.map(n=>n.toFixed(3)).join(", ")}</span>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={()=>{setPolygon(null); if(drawLayerRef.current) drawLayerRef.current.clearLayers()}} className="px-3 py-1 border rounded text-xs">Clear</button>
-                    <span className="text-xs text-slate-500">Free-form polygon will be used for TIF clip (mask), not just bbox window.</span>
+                    <button onClick={()=>{ if(rectLayerRef.current) rectLayerRef.current.clearLayers()}} className="px-3 py-1 border rounded text-xs">Clear map</button>
+                    <span className="text-xs text-slate-500">Rectangle via coords or map — polygon cleared when using rectangle. Chennai polygon preserved in Chennai tab.</span>
                   </div>
                 </div>
               )}
