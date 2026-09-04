@@ -1,21 +1,61 @@
-import { useRef, useState } from "react"
+import { useRef, useState, useMemo, useEffect } from "react"
 import { useSimulations, deleteSimulation, duplicateSimulation, exportSimulation, importSimulation, renameSimulation } from "../hooks/useSimulation"
 import type { Simulation } from "../types/simulation"
+import { 
+  Play, 
+  Plus, 
+  Upload, 
+  Copy, 
+  Edit3, 
+  Trash2, 
+  Download, 
+  Clock, 
+  MapPin, 
+  CloudRain, 
+  Search, 
+  Layers, 
+  AlertTriangle, 
+  CheckCircle2, 
+  Activity, 
+  Compass, 
+  Radio,
+  X
+} from "lucide-react"
 
-const statusColor: Record<string, string> = {
-  Ready: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  Running: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  Completed: "bg-emerald-600/20 text-emerald-300 border-emerald-600/30",
-  Incomplete: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  Error: "bg-red-500/20 text-red-400 border-red-500/30",
-  Live: "bg-purple-500/20 text-purple-400 border-purple-500/30",
-  Offline: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+const statusBadgeStyles: Record<string, { badge: string; dot: string }> = {
+  Ready: {
+    badge: "bg-emerald-500/10 text-emerald-400 border-emerald-500/30",
+    dot: "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]"
+  },
+  Running: {
+    badge: "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
+    dot: "bg-cyan-400 animate-ping shadow-[0_0_8px_rgba(34,211,238,0.6)]"
+  },
+  Completed: {
+    badge: "bg-blue-500/10 text-blue-300 border-blue-500/30",
+    dot: "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]"
+  },
+  Incomplete: {
+    badge: "bg-amber-500/10 text-amber-400 border-amber-500/30",
+    dot: "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]"
+  },
+  Error: {
+    badge: "bg-rose-500/10 text-rose-400 border-rose-500/30",
+    dot: "bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.6)]"
+  },
+  Live: {
+    badge: "bg-purple-500/10 text-purple-400 border-purple-500/30",
+    dot: "bg-purple-400 animate-pulse shadow-[0_0_8px_rgba(192,132,252,0.6)]"
+  },
+  Offline: {
+    badge: "bg-slate-500/10 text-slate-400 border-slate-500/30",
+    dot: "bg-slate-400"
+  },
 }
 
 function formatBbox(bbox?: [number, number, number, number] | number[]) {
   if (!bbox || bbox.length !== 4) return "—"
   const [minLon, minLat, maxLon, maxLat] = bbox
-  // keep 2 decimals for display but preserve if needed
   const fmt = (n: number) => Number(n).toFixed(2)
   return `${fmt(minLon)}-${fmt(maxLon)}, ${fmt(minLat)}-${fmt(maxLat)}`
 }
@@ -40,16 +80,14 @@ function formatLastModified(sim: Simulation) {
   try {
     const d = new Date(raw)
     if (isNaN(d.getTime())) return String(raw)
-    return d.toLocaleString()
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
   } catch {
     return String(raw)
   }
 }
 
 function getStatus(sim: Simulation): string {
-  // backend has both top-level status and metadata.status
   const s: any = (sim as any).status ?? (sim as any).metadata?.status ?? "Ready"
-  // ensure first letter capitalized, rest as is
   return String(s)
 }
 
@@ -64,7 +102,25 @@ export default function SelectSimulation({
 }) {
   const { data, loading, error, refetch } = useSimulations()
   const [actionError, setActionError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("ALL")
+  const [deleteTarget, setDeleteTarget] = useState<Simulation | null>(null)
+  const [renameTarget, setRenameTarget] = useState<Simulation | null>(null)
+  const [renameValue, setRenameValue] = useState("")
   const fileRef = useRef<HTMLInputElement | null>(null)
+
+  // Keyboard Escape listener to dismiss any active modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDeleteTarget(null)
+        setRenameTarget(null)
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [])
+
 
   const handleOpen = (id: string) => {
     if (onOpen) onOpen(id)
@@ -86,15 +142,30 @@ export default function SelectSimulation({
     }
   }
 
-  const handleDelete = async (sim: Simulation) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
     setActionError(null)
-    const confirmed = window.confirm(`Delete simulation "${sim.name}"? This cannot be undone.`)
-    if (!confirmed) return
     try {
-      await deleteSimulation(sim.id)
+      await deleteSimulation(deleteTarget.id)
+      setDeleteTarget(null)
       await refetch()
     } catch (e: any) {
       setActionError(e?.message ?? "delete failed")
+    }
+  }
+
+  const confirmRename = async () => {
+    if (!renameTarget || !renameValue.trim() || renameValue === renameTarget.name) {
+      setRenameTarget(null)
+      return
+    }
+    setActionError(null)
+    try {
+      await renameSimulation(renameTarget.id, renameValue.trim())
+      setRenameTarget(null)
+      await refetch()
+    } catch (e: any) {
+      setActionError(e?.message ?? "rename failed")
     }
   }
 
@@ -123,152 +194,312 @@ export default function SelectSimulation({
     }
   }
 
-  const handleRename = async (sim: Simulation) => {
-    setActionError(null)
-    const newName = window.prompt("Rename simulation", sim.name)
-    if (newName == null || newName.trim() === "" || newName === sim.name) return
-    try {
-      await renameSimulation(sim.id, newName.trim())
-      await refetch()
-    } catch (e: any) {
-      setActionError(e?.message ?? "rename failed")
-    }
+  const openRenameModal = (sim: Simulation) => {
+    setRenameTarget(sim)
+    setRenameValue(sim.name)
   }
 
   const handleEdit = (sim: Simulation) => {
     if (onEdit) onEdit(sim)
-    else handleRename(sim)
+    else openRenameModal(sim)
   }
 
+  // Filtered simulations
+  const filteredSims = useMemo(() => {
+    if (!data) return []
+    return data.filter(sim => {
+      const matchesSearch = sim.name.toLowerCase().includes(searchQuery.toLowerCase())
+      const status = getStatus(sim).toUpperCase()
+      const matchesStatus = statusFilter === "ALL" || status === statusFilter
+      return matchesSearch && matchesStatus
+    })
+  }, [data, searchQuery, statusFilter])
+
+  // Aggregate stats
+  const totalWorlds = data?.length ?? 0
+  const activeCount = data?.filter(s => getStatus(s) === "Running" || getStatus(s) === "Ready").length ?? 0
+
   return (
-    <div className="min-h-[70vh] bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 rounded-xl p-6 border border-slate-800">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">Select Simulation</h2>
-          <p className="text-sm text-slate-400">Choose a world to explore — or create a new one</p>
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {/* Top Hero & Mission Overview */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-cyan-950/40 border border-slate-800 p-6 shadow-2xl">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-pulse" />
+              <span className="text-xs font-mono uppercase tracking-wider text-cyan-400 font-semibold">GCC Spatial Intelligence Network</span>
+            </div>
+            <h2 className="text-3xl font-bold text-white tracking-tight">Select Simulation</h2>
+            <p className="text-sm text-slate-400 mt-1 max-w-xl">
+              Launch an existing Chennai hydrodynamic scenario, explore urban inundation models, or initialize a new simulation world.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={handleCreate}
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white rounded-xl text-sm font-semibold shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 transition duration-150 transform hover:-translate-y-0.5"
+            >
+              <Plus className="w-4 h-4" />
+              Create
+            </button>
+            <button
+              onClick={handleImportClick}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-800/90 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-sm font-medium border border-slate-700 transition duration-150 shadow"
+            >
+              <Upload className="w-4 h-4 text-slate-400" />
+              Import
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".matsya,.zip"
+              className="hidden"
+              onChange={handleImportChange}
+              data-testid="import-input"
+            />
+          </div>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={handleCreate}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md text-sm font-medium shadow"
-          >
-            Create
-          </button>
-          <button
-            onClick={handleImportClick}
-            className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-sm border border-slate-600"
-          >
-            Import
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".matsya,.zip"
-            className="hidden"
-            onChange={handleImportChange}
-            data-testid="import-input"
-          />
+
+        {/* Quick System Telemetry Counters */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-slate-800/80 border border-slate-700/60 text-cyan-400">
+              <Layers className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-slate-400">Simulations</div>
+              <div className="text-base font-bold text-white font-mono">{totalWorlds} Scenarios</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-slate-800/80 border border-slate-700/60 text-emerald-400">
+              <Activity className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-slate-400">Engine Status</div>
+              <div className="text-base font-bold text-emerald-400 font-mono">Ready ({activeCount} Active)</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-slate-800/80 border border-slate-700/60 text-blue-400">
+              <Compass className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-slate-400">SWD Network</div>
+              <div className="text-base font-bold text-white font-mono">10,257 Conduits</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-slate-800/80 border border-slate-700/60 text-purple-400">
+              <Radio className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-slate-400">Waterbodies</div>
+              <div className="text-base font-bold text-white font-mono">4,086 Tanks & Lakes</div>
+            </div>
+          </div>
         </div>
       </div>
 
+      {/* Action error banner */}
       {actionError && (
-        <div className="mb-4 p-3 bg-red-900/30 border border-red-700 text-red-300 rounded text-sm">{actionError}</div>
+        <div 
+          role="alert"
+          aria-live="assertive"
+          className="p-4 bg-rose-950/50 border border-rose-800 text-rose-300 rounded-xl text-sm flex items-center justify-between gap-3 shadow-lg"
+        >
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button 
+            type="button" 
+            onClick={() => setActionError(null)}
+            aria-label="Dismiss error notification"
+            className="p-1 rounded-lg text-rose-400 hover:text-white hover:bg-rose-900/40 transition focus-ring"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       )}
 
-      {loading && <div className="text-slate-300 py-8 text-center">Loading simulations…</div>}
+      {/* Search & Filter Toolbar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter simulations by name..."
+            className="w-full bg-slate-950/80 border border-slate-700/80 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition"
+          />
+        </div>
 
-      {error && !loading && <div className="text-red-300 py-4 text-center">Failed to load: {error}</div>}
+        <div className="flex items-center gap-1.5 self-start sm:self-auto overflow-x-auto w-full sm:w-auto">
+          {["ALL", "READY", "RUNNING", "COMPLETED"].map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                statusFilter === status
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                  : "bg-slate-800/50 text-slate-400 hover:text-slate-200 border border-transparent"
+              }`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      {/* Loading state */}
+      {loading && (
+        <div className="text-center py-20 bg-slate-900/30 rounded-2xl border border-slate-800/60">
+          <div className="inline-block w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin mb-3" />
+          <div className="text-slate-400 text-sm font-medium">Loading simulation database…</div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {error && !loading && (
+        <div className="text-center py-16 bg-rose-950/20 rounded-2xl border border-rose-900/40 p-6">
+          <AlertTriangle className="w-10 h-10 text-rose-400 mx-auto mb-3" />
+          <div className="text-rose-300 font-semibold mb-1">Failed to load simulations</div>
+          <p className="text-xs text-rose-400/80 max-w-md mx-auto mb-4">{error}</p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-medium border border-slate-700"
+          >
+            Retry Connection
+          </button>
+        </div>
+      )}
+
+      {/* Empty state */}
       {!loading && !error && (!data || data.length === 0) && (
-        <div className="text-center py-16 border-2 border-dashed border-slate-700 rounded-xl bg-slate-900/50">
-          <p className="text-slate-300 mb-3">No simulations yet</p>
-          <button onClick={handleCreate} className="px-4 py-2 bg-emerald-600 text-white rounded-md text-sm">
+        <div className="text-center py-20 border-2 border-dashed border-slate-800 rounded-2xl bg-slate-900/40 p-8">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 mx-auto mb-4">
+            <Compass className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white mb-1">No Simulation Worlds Configured</h3>
+          <p className="text-slate-400 text-sm max-w-md mx-auto mb-6">
+            Initialize your first Chennai metropolitan flood scenario to analyze storm water dynamics and road inundation.
+          </p>
+          <button
+            onClick={handleCreate}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-cyan-500/20"
+          >
+            <Plus className="w-4 h-4" />
             Create your first simulation
           </button>
         </div>
       )}
 
-      {!loading && data && data.length > 0 && (
+      {/* Simulations Grid */}
+      {!loading && filteredSims && filteredSims.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {data.map((sim) => {
+          {filteredSims.map((sim) => {
             const status = getStatus(sim)
-            const badgeCls = statusColor[status] ?? "bg-slate-700 text-slate-200 border-slate-600"
+            const style = statusBadgeStyles[status] ?? statusBadgeStyles.Ready
             const bbox = (sim as any).area?.bbox
             const rainfall = (sim as any).rainfall
+
             return (
               <div
                 key={sim.id}
-                className="bg-[#1e293b] border border-[#334155] rounded-xl shadow-md hover:shadow-xl hover:border-slate-500 transition overflow-hidden flex flex-col"
+                className="group glass-card rounded-2xl border border-slate-800 hover:border-cyan-500/50 transition-all duration-200 flex flex-col overflow-hidden hover:shadow-xl hover:shadow-cyan-950/30"
               >
-                {/* top accent */}
-                <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500" />
-                <div className="p-5 flex-1 flex flex-col">
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <h3 className="text-white font-semibold text-lg leading-tight line-clamp-2 flex-1">{sim.name}</h3>
-                    <span
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap ${badgeCls}`}
-                      title={`Status: ${status}`}
-                    >
+                {/* Visual Card Banner with topographic styling */}
+                <div className="h-20 w-full relative bg-gradient-to-br from-slate-800 via-slate-850 to-slate-900 border-b border-slate-800/80 p-4 flex items-center justify-between overflow-hidden">
+                  <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#38bdf8_1px,transparent_1px)] [background-size:12px_12px]" />
+                  <div className="relative z-10">
+                    <span className="text-[10px] font-mono text-cyan-400 font-semibold tracking-wider uppercase">SIMULATION WORLD</span>
+                    <h3 className="text-white font-bold text-base leading-snug line-clamp-1 group-hover:text-cyan-300 transition">{sim.name}</h3>
+                  </div>
+
+                  <div className="relative z-10">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${style.badge}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
                       {status}
                     </span>
                   </div>
+                </div>
 
-                  <div className="space-y-2 text-sm flex-1">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Area</span>
-                      <span className="text-slate-200 font-mono text-xs text-right">{formatBbox(bbox)}</span>
+                {/* Body Metrics */}
+                <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  <div className="space-y-2.5 text-xs">
+                    <div className="flex items-center justify-between py-1 border-b border-slate-800/60">
+                      <span className="flex items-center gap-1.5 text-slate-400">
+                        <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                        Area Bounds
+                      </span>
+                      <span className="text-slate-200 font-mono text-[11px]">{formatBbox(bbox)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Rainfall</span>
-                      <span className="text-slate-200 text-xs text-right">{formatRainfall(rainfall)}</span>
+
+                    <div className="flex items-center justify-between py-1 border-b border-slate-800/60">
+                      <span className="flex items-center gap-1.5 text-slate-400">
+                        <CloudRain className="w-3.5 h-3.5 text-cyan-400" />
+                        Precipitation
+                      </span>
+                      <span className="text-cyan-300 font-mono font-medium">{formatRainfall(rainfall)}</span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">Last modified</span>
-                      <span className="text-slate-300 text-xs text-right">{formatLastModified(sim)}</span>
+
+                    <div className="flex items-center justify-between py-1">
+                      <span className="flex items-center gap-1.5 text-slate-400">
+                        <Clock className="w-3.5 h-3.5 text-slate-500" />
+                        Last modified
+                      </span>
+                      <span className="text-slate-400">{formatLastModified(sim)}</span>
                     </div>
                   </div>
 
-                  {/* Actions */}
-                  <div className="mt-5 flex flex-wrap gap-2">
+                  {/* Primary & Secondary Actions */}
+                  <div className="space-y-2 pt-2">
                     <button
                       onClick={() => handleOpen(sim.id)}
-                      className="flex-1 min-w-[60px] px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium"
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-900/30 transition transform hover:-translate-y-0.5"
                     >
+                      <Play className="w-3.5 h-3.5 fill-current" />
                       Open
                     </button>
-                    <button
-                      onClick={() => handleEdit(sim)}
-                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm border border-slate-600"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleRename(sim)}
-                      className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm border border-slate-600"
-                    >
-                      Rename
-                    </button>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button
-                      onClick={() => handleDuplicate(sim)}
-                      className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm border border-slate-600"
-                    >
-                      Duplicate
-                    </button>
-                    <button
-                      onClick={() => handleExport(sim)}
-                      className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-sm border border-slate-600"
-                    >
-                      Export
-                    </button>
-                    <button
-                      onClick={() => handleDelete(sim)}
-                      className="px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded text-sm border border-red-600"
-                    >
-                      Delete
-                    </button>
+
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <button
+                        onClick={() => handleEdit(sim)}
+                        title="Edit parameters"
+                        className="flex items-center justify-center gap-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-slate-700/60 transition"
+                      >
+                        <Edit3 className="w-3 h-3 text-slate-400" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDuplicate(sim)}
+                        title="Duplicate world"
+                        className="flex items-center justify-center gap-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-slate-700/60 transition"
+                      >
+                        <Copy className="w-3 h-3 text-slate-400" />
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => handleExport(sim)}
+                        title="Export .matsya archive"
+                        className="flex items-center justify-center gap-1 py-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg text-xs font-medium border border-slate-700/60 transition"
+                      >
+                        <Download className="w-3 h-3 text-cyan-400" />
+                        Export
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(sim)}
+                        title="Delete simulation"
+                        className="flex items-center justify-center gap-1 py-1.5 bg-slate-800/80 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded-lg text-xs font-medium border border-slate-700/60 hover:border-rose-800/60 transition"
+                      >
+                        <Trash2 className="w-3 h-3 text-rose-400" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -276,6 +507,114 @@ export default function SelectSimulation({
           })}
         </div>
       )}
+
+      {/* In-App Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div 
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-dialog-title"
+            className="glass-panel w-full max-w-md rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-full bg-rose-500/20 border border-rose-500/30 text-rose-400">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 id="delete-dialog-title" className="text-base font-bold text-white">Delete Simulation World?</h4>
+                <p className="text-xs text-slate-400">This action will remove all saved rasters and parameters.</p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-xs font-mono text-slate-300">
+              Target: <span className="text-white font-bold">{deleteTarget.name}</span>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition focus-ring"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-rose-600/30 transition focus-ring"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Rename Modal */}
+      {renameTarget && (
+        <div 
+          className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setRenameTarget(null)}
+        >
+          <div 
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="rename-dialog-title"
+            className="glass-panel w-full max-w-md rounded-2xl p-6 border border-slate-800 shadow-2xl space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-full bg-cyan-500/20 border border-cyan-500/30 text-cyan-400">
+                <Edit3 className="w-6 h-6" />
+              </div>
+              <div>
+                <h4 id="rename-dialog-title" className="text-base font-bold text-white">Rename Simulation</h4>
+                <p className="text-xs text-slate-400">Enter a descriptive title for this scenario.</p>
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="rename-input-name" className="sr-only">Simulation Scenario Name</label>
+              <input
+                id="rename-input-name"
+                type="text"
+                value={renameValue}
+                onChange={(e) => setRenameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") confirmRename()
+                  if (e.key === "Escape") setRenameTarget(null)
+                }}
+                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500 focus-ring transition"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setRenameTarget(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition focus-ring"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmRename}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-cyan-600/30 transition focus-ring"
+              >
+                Save Name
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
+
