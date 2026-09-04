@@ -53,8 +53,28 @@ class Terrain(BaseModel):
 
 
 class Rainfall(BaseModel):
-    rateMmHr: float
-    durationHr: float
+    # Constant mode (legacy)
+    rateMmHr: float | None = None
+    durationHr: float | None = None
+    # Variable mode
+    mode: str = "constant"  # "constant" | "variable"
+    constantRate: float | None = None
+    totalTime: float | None = None
+    maxRain: float | None = None
+    unit: str | None = "rate"  # "rate" | "total"
+    points: list[dict] | None = None
+    curve: dict | None = None
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        # Handle legacy rateMmHr/durationHr without mode
+        if isinstance(obj, dict) and "mode" not in obj:
+            if "rateMmHr" in obj and obj["rateMmHr"] is not None:
+                obj = obj.copy()
+                obj["mode"] = "constant"
+                obj["constantRate"] = obj["rateMmHr"]
+                # keep durationHr as is
+        return super().model_validate(obj, *args, **kwargs)
 
 
 class Drainage(BaseModel):
@@ -103,6 +123,15 @@ class Simulation(BaseModel):
     area: Area
     terrain: Terrain | None = None
     rainfall: Rainfall
+
+    @field_validator("rainfall", mode="before")
+    @classmethod
+    def check_rainfall(cls, v):
+        if isinstance(v, dict) and "mode" not in v and "rateMmHr" in v and v["rateMmHr"] is not None:
+            v = v.copy()
+            v["mode"] = "constant"
+            v["constantRate"] = v["rateMmHr"]
+        return v
     drainage: Drainage | None = None
     rivers: Any | None = None
     canals: Any | None = None

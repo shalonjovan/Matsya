@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react"
 import type { Simulation } from "../types/simulation"
 import { API_BASE } from "../hooks/useSimulation"
+import RainfallGraph from "./RainfallGraph"
+import { randomPreset } from "../utils/rainfall"
 
 interface Props {
   open: boolean
@@ -46,8 +48,13 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const [maxLon, setMaxLon] = useState(String(editSim?.area?.bbox?.[2] ?? "80.20"))
   const [maxLat, setMaxLat] = useState(String(editSim?.area?.bbox?.[3] ?? "13.13"))
   const [polygon, setPolygon] = useState<any>(editSim?.area?.polygon ?? null)
-  const [rate, setRate] = useState(String(editSim?.rainfall?.rateMmHr ?? "50"))
+  const [rate, setRate] = useState(String(editSim?.rainfall?.rateMmHr ?? editSim?.rainfall?.constantRate ?? "50"))
   const [duration, setDuration] = useState(String(editSim?.rainfall?.durationHr ?? "1"))
+  const [rainfallMode, setRainfallMode] = useState<"constant"|"variable">(editSim?.rainfall?.mode === "variable" ? "variable" : "constant")
+  const [totalTime, setTotalTime] = useState(String(editSim?.rainfall?.totalTime ?? "6"))
+  const [maxRain, setMaxRain] = useState(String(editSim?.rainfall?.maxRain ?? "100"))
+  const [unit, setUnit] = useState<"rate"|"total">(editSim?.rainfall?.unit === "total" ? "total" : "rate")
+  const [points, setPoints] = useState<{time:number,amount:number}[]>(editSim?.rainfall?.points ?? [{time:0,amount:0},{time:3,amount:50}])
   const [cfl, setCfl] = useState(String((editSim as any)?.parameters?.cfl ?? "0.7"))
   const [search, setSearch] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
@@ -248,13 +255,15 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   }
 
   const handleSubmit = async () => {
-    if (!nameValid || !areaValid || !rainfallValid) { setError("Please fix validation errors"); return }
+    const isVariable = rainfallMode==="variable"
+    const rainValid = isVariable ? (points.length>=2 && !isNaN(parseFloat(totalTime)) && !isNaN(parseFloat(maxRain))) : rainfallValid
+    if (!nameValid || !areaValid || !rainValid) { setError("Please fix validation errors"); return }
     setSaving(true); setError(null)
     try {
       const payload: any = {
         name: name.trim(),
         area: { bbox, crs: "EPSG:4326", polygon: polygon || undefined },
-        rainfall: { rateMmHr: parseFloat(rate), durationHr: parseFloat(duration) },
+        rainfall: isVariable ? { mode:"variable", totalTime: parseFloat(totalTime), maxRain: parseFloat(maxRain), unit, points } : { mode:"constant", rateMmHr: parseFloat(rate), durationHr: parseFloat(duration), constantRate: parseFloat(rate) },
         parameters: { cfl: parseFloat(cfl) || 0.7 }
       }
       let res: Response
@@ -365,14 +374,46 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
           )}
           {step===3 && (
             <div className="space-y-4">
-              <h4 className="font-medium">Data checklist §5.2</h4>
+              <h4 className="font-medium">Rainfall — Default vs Advanced (variable)</h4>
+              <div className="flex gap-2 text-xs">
+                <button onClick={()=>setRainfallMode("constant")} className={`flex-1 py-2 rounded ${rainfallMode==="constant" ? "bg-blue-600 text-white" : "bg-slate-100"}`}>Default (constant)</button>
+                <button onClick={()=>setRainfallMode("variable")} className={`flex-1 py-2 rounded ${rainfallMode==="variable" ? "bg-emerald-600 text-white" : "bg-slate-100"}`}>Advanced (graph)</button>
+              </div>
+              {rainfallMode==="constant" ? (
+                <div className="space-y-2">
+                  <label>Rainfall rate mm/hr <input value={rate} onChange={e=>setRate(e.target.value)} className="w-full border rounded px-2 py-1" /></label>
+                  <label>Duration hr <input value={duration} onChange={e=>setDuration(e.target.value)} className="w-full border rounded px-2 py-1" /></label>
+                  <p className="text-xs text-slate-500">Constant rain over time (current model: 50 mm/hr ×1 hr). Rainfall: {rainfallValid ? `✓ ${rate} mm/hr × ${duration} hr` : `✗ invalid`}</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <label>Total time (hr)<input value={totalTime} onChange={e=>setTotalTime(e.target.value)} className="w-full border rounded px-2 py-1" /></label>
+                    <label>Max rain ({unit==="rate"?"mm/hr":"mm"})<input value={maxRain} onChange={e=>setMaxRain(e.target.value)} className="w-full border rounded px-2 py-1" /></label>
+                    <label>Unit
+                      <select value={unit} onChange={e=>setUnit(e.target.value as any)} className="w-full border rounded px-2 py-1">
+                        <option value="rate">Rate mm/hr</option>
+                        <option value="total">Total mm</option>
+                      </select>
+                    </label>
+                  </div>
+                  <RainfallGraph totalTime={parseFloat(totalTime)||6} maxRain={parseFloat(maxRain)||100} unit={unit} points={points} onChange={setPoints} />
+                  <div className="flex gap-2">
+                    <button onClick={()=>{
+                      const presets=["burst","gradual","double-peak","random"]
+                      const pick=presets[Math.floor(Math.random()*presets.length)]
+                      setPoints(randomPreset(pick, parseFloat(totalTime)||6, parseFloat(maxRain)||100))
+                    }} className="px-4 py-2 bg-purple-600 text-white rounded text-sm">Random</button>
+                    <span className="text-xs text-slate-500 py-2">Random curve shapes: burst, gradual, double-peak, random (sorted, within 0→{totalTime}hr, 0→{maxRain}{unit==="rate"?"mm/hr":"mm"})</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Points: {points.length} • Smooth spline y=spline(x) • Time on x (0→{totalTime}hr), Amount on y (0→{maxRain}) • Drag to move, double-click to delete, click to add.</p>
+                </div>
+              )}
               <ul className="text-sm space-y-1 border rounded p-3 bg-slate-50">
-                <li>Terrain / DEM: <span className="text-emerald-600">✓ seeded (dem_clipped.tif 180×180 @30m)</span></li>
-                <li>Rainfall: {rainfallValid ? <span className="text-emerald-600">✓ {rate} mm/hr × {duration} hr</span> : <span className="text-red-500">✗ invalid</span>}</li>
+                <li>Terrain / DEM: <span className="text-emerald-600">✓ seeded</span></li>
+                <li>Rainfall: {rainfallMode==="constant" ? (rainfallValid ? <span className="text-emerald-600">✓ {rate} mm/hr × {duration} hr</span> : <span className="text-red-500">✗ invalid</span>) : <span className="text-emerald-600">✓ {points.length} points, {totalTime}hr, {unit}</span>}</li>
                 <li>Polygon: {polygon ? <span className="text-emerald-600">✓ {polygon.coordinates[0].length} points ~{polygonArea} km²</span> : <span className="text-slate-500">— using rectangle</span>}</li>
               </ul>
-              <label>Rainfall rate mm/hr <input value={rate} onChange={e=>setRate(e.target.value)} className="w-full border rounded px-2 py-1" /></label>
-              <label>Duration hr <input value={duration} onChange={e=>setDuration(e.target.value)} className="w-full border rounded px-2 py-1" /></label>
             </div>
           )}
           {step===4 && (

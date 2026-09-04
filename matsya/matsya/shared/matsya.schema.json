@@ -106,18 +106,94 @@
     },
     "rainfall": {
       "type": "object",
-      "required": [
-        "rateMmHr",
-        "durationHr"
-      ],
       "properties": {
         "rateMmHr": {
-          "type": "number",
-          "description": "Rainfall rate mm/hr"
+          "type": [
+            "number",
+            "null"
+          ],
+          "description": "Legacy constant rate"
         },
         "durationHr": {
-          "type": "number",
-          "description": "Duration hours"
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "constant",
+            "variable"
+          ],
+          "default": "constant"
+        },
+        "constantRate": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "totalTime": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "maxRain": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "enum": [
+            "rate",
+            "total"
+          ],
+          "default": "rate"
+        },
+        "points": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "object",
+            "properties": {
+              "time": {
+                "type": "number"
+              },
+              "amount": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "time",
+              "amount"
+            ]
+          }
+        },
+        "curve": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "number"
+              }
+            },
+            "method": {
+              "type": "string"
+            },
+            "unit": {
+              "type": "string"
+            }
+          }
         }
       }
     },

@@ -133,19 +133,68 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         (snapshots list 2D float (height,width), pngs list bytes, stats dict)
         stats: {maxDepth, floodedArea, meanDepth, width, height, steps, bbox}
     """
-    # parse rainfall
+    # parse rainfall — handle both constant and variable modes
+    curve_values = None
+    rate = 50.0
+    duration = 1.0
     try:
         if isinstance(rainfall, dict):
-            rate = float(rainfall.get("rateMmHr", rainfall.get("rate", 50)))
-            duration = float(rainfall.get("durationHr", rainfall.get("duration", 1)))
+            mode = rainfall.get("mode", "constant")
+            if mode == "variable":
+                # variable mode with points/curve
+                if rainfall.get("curve") and isinstance(rainfall["curve"], dict) and "values" in rainfall["curve"]:
+                    curve_values = rainfall["curve"]["values"]
+                    totalTime = rainfall.get("totalTime", rainfall.get("durationHr", 6))
+                    duration = float(totalTime)
+                elif rainfall.get("points"):
+                    from app.services.rainfall_curve import interpolate
+                    totalTime = rainfall.get("totalTime", 6)
+                    maxRain = rainfall.get("maxRain", 100)
+                    unit = rainfall.get("unit", "rate")
+                    res = interpolate(rainfall["points"], totalTime=totalTime, maxRain=maxRain, unit=unit, steps=steps)
+                    curve_values = res["values"]
+                    duration = float(totalTime)
+                else:
+                    duration = float(rainfall.get("totalTime", rainfall.get("durationHr", 1)))
+            else:
+                # constant
+                rate = float(rainfall.get("rateMmHr", rainfall.get("constantRate", rainfall.get("rate", 50))) or 50)
+                if rainfall.get("constantRate") is not None:
+                    rate = float(rainfall["constantRate"])
+                duration = float(rainfall.get("durationHr", rainfall.get("totalTime", 1)) or 1)
         else:
-            rate = float(getattr(rainfall, "rateMmHr", 50))
-            duration = float(getattr(rainfall, "durationHr", 1))
-    except Exception:
+            mode = getattr(rainfall, "mode", "constant")
+            if mode == "variable":
+                curve = getattr(rainfall, "curve", None)
+                if curve and isinstance(curve, dict) and "values" in curve:
+                    curve_values = curve["values"]
+                elif getattr(rainfall, "points", None):
+                    from app.services.rainfall_curve import interpolate
+                    totalTime = getattr(rainfall, "totalTime", 6) or 6
+                    maxRain = getattr(rainfall, "maxRain", 100) or 100
+                    unit = getattr(rainfall, "unit", "rate") or "rate"
+                    points = getattr(rainfall, "points", [])
+                    res = interpolate(points, totalTime=totalTime, maxRain=maxRain, unit=unit, steps=steps)
+                    curve_values = res["values"]
+                    duration = float(totalTime)
+                else:
+                    duration = float(getattr(rainfall, "totalTime", getattr(rainfall, "durationHr", 6)) or 6)
+            else:
+                rate = float(getattr(rainfall, "rateMmHr", getattr(rainfall, "constantRate", 50)) or 50)
+                if hasattr(rainfall, "constantRate") and getattr(rainfall, "constantRate") is not None:
+                    rate = float(getattr(rainfall, "constantRate"))
+                duration = float(getattr(rainfall, "durationHr", 1) or 1)
+    except Exception as e:
+        # print(f"rainfall parse failed {e}")
         rate, duration = 50.0, 1.0
 
-    total_rain = rate * duration  # mm
-    rain_factor = total_rain * 0.01  # meters, scaling per spec example
+    if curve_values is None:
+        total_rain = rate * duration  # mm
+        rain_factor = total_rain * 0.01  # meters, scaling per spec example
+    else:
+        # For variable, rain_factor will be per-step, not total
+        total_rain = None
+        rain_factor = None
 
     # get DEM
     dem = _dem_for_bbox(bbox, width, height)
@@ -172,7 +221,20 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
     snapshots = []
     for i in range(steps):
         t = (i + 1) / steps
-        water_level = dem_min + rain_factor * t
+        if curve_values is not None and len(curve_values) > i:
+            # variable: use curve rate for this step, cumulative rain up to i
+            # For variable, depth based on cumulative rain and instantaneous rate
+            # Use cumulative: sum of rates up to i * dt
+            dt = duration * 3600 / steps if steps>0 else 3600
+            # For variable, total rain up to i is sum of curve_values[:i+1]*dt/3600
+            cum_rain = sum(curve_values[:i+1]) * dt / 3600.0  # mm
+            rain_depth_m = cum_rain / 1000.0
+            # Also add instantaneous rate effect
+            step_rate = float(curve_values[i])
+            # Combine cumulative + instantaneous for depth variation
+            water_level = dem_min + rain_depth_m + (step_rate * 0.001)
+        else:
+            water_level = dem_min + rain_factor * t
         # depth = water_level - dem + noise, clipped
         depth = water_level - dem_filled + noise_map
         depth = np.clip(depth, 0, 5)
@@ -275,7 +337,13 @@ def ensure_flood(sim, base_path=None, width=180, height=180):
         except Exception:
             bbox = [80.15, 13.08, 80.20, 13.13]
     try:
-        if hasattr(sim.rainfall, "rateMmHr"):
+        if hasattr(sim.rainfall, "mode"):
+            # Preserve full rainfall dict including variable fields
+            if isinstance(sim.rainfall, dict):
+                rainfall = sim.rainfall
+            else:
+                rainfall = sim.rainfall.model_dump() if hasattr(sim.rainfall, "model_dump") else {"rateMmHr": getattr(sim.rainfall, "rateMmHr", 50), "durationHr": getattr(sim.rainfall, "durationHr", 1)}
+        elif hasattr(sim.rainfall, "rateMmHr"):
             rainfall = {"rateMmHr": sim.rainfall.rateMmHr, "durationHr": sim.rainfall.durationHr}
         elif isinstance(sim.rainfall, dict):
             rainfall = {"rateMmHr": sim.rainfall.get("rateMmHr", 50), "durationHr": sim.rainfall.get("durationHr", 1)}
