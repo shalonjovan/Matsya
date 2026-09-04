@@ -128,15 +128,39 @@ def clip_and_render(bbox, width=180, height=180, polygon=None):
             vmin, vmax, vmean = 0, 10, 5
         else:
             vmin, vmax, vmean = float(np.min(valid)), float(np.max(valid)), float(np.mean(valid))
-        # render PNG via hypsometric per pixel
+        # render PNG via hypsometric — vectorized for speed
         rgb = np.zeros((height, width, 3), dtype=np.uint8)
-        for y in range(height):
-            for x in range(width):
-                if np.isnan(arr[y, x]):
-                    rgb[y, x] = [0, 0, 0]
-                else:
-                    r, g, b = hypsometric_color(float(arr[y, x]), vmin, vmax)
-                    rgb[y, x] = [r, g, b]
+        # Create mask for valid
+        valid_mask = ~np.isnan(arr)
+        if np.any(valid_mask):
+            # Vectorized hypsometric: compute norm for valid pixels
+            norm = np.clip((arr[valid_mask] - vmin) / (vmax - vmin) if vmax != vmin else 0.5, 0, 1)
+            # Interpolate colors per valid pixel using vectorized loop over stops
+            # For each valid pixel, find its segment
+            # Use numpy digitize
+            stops = np.array([0, 0.2, 0.5, 0.7, 0.85, 1.0])
+            colors = np.array([(10, 61, 46), (44, 95, 45), (168, 213, 162), (210, 180, 140), (139, 69, 19), (254, 254, 254)])
+            # Find indices
+            indices = np.digitize(norm, stops) - 1
+            indices = np.clip(indices, 0, len(stops)-2)
+            # Compute t
+            lo = stops[indices]
+            hi = stops[np.clip(indices+1, 0, len(stops)-1)]
+            # Avoid division by zero
+            span = hi - lo
+            span[span==0] = 1
+            t = (norm - lo) / span
+            t = np.clip(t, 0, 1)
+            # Lerp
+            c0 = colors[indices]
+            c1 = colors[np.clip(indices+1, 0, len(colors)-1)]
+            r = (c0[:,0]*(1-t) + c1[:,0]*t).astype(np.uint8)
+            g = (c0[:,1]*(1-t) + c1[:,1]*t).astype(np.uint8)
+            b = (c0[:,2]*(1-t) + c1[:,2]*t).astype(np.uint8)
+            rgb[valid_mask, 0] = r
+            rgb[valid_mask, 1] = g
+            rgb[valid_mask, 2] = b
+        # Invalid (nan) stays black [0,0,0]
         img = Image.fromarray(rgb, "RGB")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
