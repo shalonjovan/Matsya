@@ -3,6 +3,7 @@ services:
     build: ./backend
     ports: ["8000:8000"]
     volumes:
+      - ./backend/app:/app/app:ro
       - ./backend/data:/app/data
       - ../../assets:/app/assets:ro
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
