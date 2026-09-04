@@ -8,19 +8,23 @@ from rasterio.windows import from_bounds
 from rasterio.enums import Resampling
 from PIL import Image
 
-# TIF path: same logic as elevation.py
-TIF = pathlib.Path(__file__).resolve().parents[5] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"
-if not TIF.exists():
-    for cand in [
+# TIF path: try multiple candidates for host and Docker — robust to parents index
+def _find_tif():
+    candidates = [
+        pathlib.Path(__file__).resolve().parents[5] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 5 else None,
         pathlib.Path("assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"),
         pathlib.Path("/app/assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"),
-        pathlib.Path(__file__).resolve().parents[2] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif",
-        pathlib.Path(__file__).resolve().parents[3] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif",
-        pathlib.Path(__file__).resolve().parents[4] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif",
-    ]:
-        if cand.exists():
-            TIF = cand
-            break
+        pathlib.Path(__file__).resolve().parents[2] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 2 else None,
+        pathlib.Path(__file__).resolve().parents[3] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 3 else None,
+        pathlib.Path(__file__).resolve().parents[4] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 4 else None,
+        pathlib.Path("/app/app/../assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"),
+    ]
+    for cand in candidates:
+        if cand and cand.exists():
+            return cand
+    return pathlib.Path("assets/CartoDEM_30m_Chennai_EGM96_MSL.tif")
+
+TIF = _find_tif()
 
 
 # depth color ramp: 0→0.05 #bae6fd, 0.15 #38bdf8, 0.3 #0284c7, 0.6 #0c4a6e, 1.0 #082f49
