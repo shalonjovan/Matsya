@@ -13,7 +13,12 @@ from app.services.simulation_store import store
 
 router = APIRouter(prefix="/api/hydro", tags=["hydro"])
 
+_HYDRO_CACHE = None
+
 def _load_and_snap():
+    global _HYDRO_CACHE
+    if _HYDRO_CACHE is not None:
+        return _HYDRO_CACHE
     if not HAS_HYDRO:
         # Return mock data for when GDAL not available (Docker without GDAL) — use correct counts
         try:
@@ -25,14 +30,16 @@ def _load_and_snap():
             empty = []
             mock_wb = []
             mock_riv = []
-        return {"micro": empty, "macro": empty, "rivers": mock_riv, "waterbodies": mock_wb}, {"mapping": {}, "snapped": empty, "stats": {"total":52, "snapped_to_waterbody":20, "to_river":7, "to_sea":25, "unsnapped":0}}, None
+        _HYDRO_CACHE = ({"micro": empty, "macro": empty, "rivers": mock_riv, "waterbodies": mock_wb}, {"mapping": {}, "snapped": empty, "stats": {"total":52, "snapped_to_waterbody":20, "to_river":7, "to_sea":25, "unsnapped":0}}, None)
+        return _HYDRO_CACHE
     try:
         data = load_assets("assets")
     except Exception as e:
         raise HTTPException(500, f"asset load failed: {e}")
     snap_res = snap_drains_to_waterbodies(data["micro"], data["macro"], data["rivers"], data["waterbodies"], tol=50)
     G = build_graph(snap_res, data["waterbodies"], data["rivers"])
-    return data, snap_res, G
+    _HYDRO_CACHE = (data, snap_res, G)
+    return _HYDRO_CACHE
 
 @router.get("/summary")
 def summary():

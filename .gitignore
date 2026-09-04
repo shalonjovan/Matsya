@@ -30,3 +30,20 @@ test/itzi/chennai_test/grassdb/
 __pycache__/
 .vscode/
 .idea/
+
+# Frontend build & packages
+node_modules/
+dist/
+.next/
+
+# Virtual environment & archives
+venv/
+.venv/
+*.zip
+*.tsbuildinfo
+*.npy
+**/data/runs/
+
+
+
+
