@@ -141,13 +141,23 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
     if (!open || areaMode!=="rect" || !rectMapRef.current) return
     let cancelled=false
     const init = async()=>{
-      const L = await import("leaflet")
+      await import("leaflet")
       await import("leaflet-draw")
       // @ts-ignore
       await import("leaflet/dist/leaflet.css")
       // @ts-ignore
       await import("leaflet-draw/dist/leaflet.draw.css")
       if (cancelled || !rectMapRef.current) return
+      // leaflet-draw ships as a UMD IIFE on (window, document): it mutates the
+      // GLOBAL L (window.L), while `await import("leaflet")` returns a different
+      // module object without the plugin. Always use the object the plugin
+      // attached to — using the import object leaves Draw undefined and no map
+      // event handlers (draw/edit/save) ever attach.
+      const L = ((window as any).L ?? {}) as any
+      if (!L.map || !L.Draw || !L.Control || !(L.Control as any).Draw) {
+        if (!cancelled) setError("Map drawing library failed to load (leaflet-draw did not attach). Please reload and retry.")
+        return
+      }
       if (rectMapInstance.current) {
         try { rectMapInstance.current.remove() } catch {}
       }
