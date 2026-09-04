@@ -6,13 +6,17 @@ class WaterBody:
     Prismatic storage: volume = area * max(0, stage - bed)
     outflow = C * L * (stage - crest)^(3/2) if stage > crest else 0
     bed = crest - depth (default depth 2m, so bed = crest-2)
+    max_depth_above_crest caps stage (default 3m); excess is forced overflow
+    so water accumulation is limited and water bodies visibly spill.
     """
-    def __init__(self, area_m2: float, crest: float, stage: float = None, crest_width: float = 10.0, C: float = 1.7, depth: float = 2.0):
+    def __init__(self, area_m2: float, crest: float, stage=None, crest_width: float = 10.0, C: float = 1.7, depth: float = 2.0, max_depth_above_crest: float = 3.0):
         self.area_m2 = float(area_m2)
         self.crest = float(crest)
         self.crest_width = float(crest_width)
         self.C = float(C)
         self.bed = self.crest - depth
+        self.max_depth_above_crest = float(max_depth_above_crest)
+        self.forced_overflow = False
         # initial stage defaults to crest (empty: stage = bed, but we start at crest for dry? Use bed if not given)
         if stage is None:
             self.stage = self.bed
@@ -51,7 +55,24 @@ class WaterBody:
             outflow = outflow_vol / dt
         self.volume -= outflow_vol
         self.stage = self.bed + self.volume / self.area_m2
+        # cap stage at crest + max_depth_above_crest: excess becomes forced overflow
+        # so accumulation is limited and spill is guaranteed under extreme rain
+        try:
+            max_stage = self.crest + self.max_depth_above_crest
+        except Exception:
+            max_stage = self.crest + 3.0
+            self.max_depth_above_crest = 3.0
+            self.forced_overflow = False
+        if self.stage > max_stage:
+            excess_vol = (self.stage - max_stage) * self.area_m2
+            extra_q = excess_vol / dt if dt else 0.0
+            self.volume -= excess_vol
+            self.stage = max_stage
+            outflow += extra_q
+            self.forced_overflow = True
+        else:
+            self.forced_overflow = False
         return outflow
 
     def get_state(self):
-        return {"area_m2": self.area_m2, "crest": self.crest, "stage": self.stage, "volume": self.volume, "bed": self.bed}
+        return {"area_m2": self.area_m2, "crest": self.crest, "stage": self.stage, "volume": self.volume, "bed": self.bed, "forced_overflow": self.forced_overflow, "max_depth_above_crest": getattr(self, "max_depth_above_crest", 3.0)}

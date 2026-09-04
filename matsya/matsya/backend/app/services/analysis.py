@@ -75,24 +75,26 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                 import numpy as np
 
                 # Resolve bbox, rainfall, width, height, steps
-                # rainfall
+                # rainfall (preserve variable mode incl. points/curve/totalTime)
                 try:
                     if hasattr(sim, "rainfall"):  # type: ignore[attr-defined]
                         rf = sim.rainfall  # type: ignore[attr-defined]
                         if rf is None:
                             rainfall = {"rateMmHr": 50, "durationHr": 1}
                         elif isinstance(rf, dict):
-                            rainfall = {"rateMmHr": rf.get("rateMmHr", 50), "durationHr": rf.get("durationHr", 1)}
+                            rainfall = dict(rf)
+                        elif hasattr(rf, "model_dump"):
+                            try:
+                                rainfall = rf.model_dump(mode="json")  # type: ignore
+                            except Exception:
+                                rainfall = {"rateMmHr": float(getattr(rf, "rateMmHr", 50)), "durationHr": float(getattr(rf, "durationHr", 1))}
                         elif hasattr(rf, "rateMmHr"):
                             rainfall = {"rateMmHr": float(rf.rateMmHr), "durationHr": float(rf.durationHr)}  # type: ignore
                         else:
                             rainfall = {"rateMmHr": 50, "durationHr": 1}
                     elif isinstance(sim, dict):
                         rf = sim.get("rainfall", {})  # type: ignore
-                        if isinstance(rf, dict):
-                            rainfall = {"rateMmHr": rf.get("rateMmHr", 50), "durationHr": rf.get("durationHr", 1)}
-                        else:
-                            rainfall = {"rateMmHr": 50, "durationHr": 1}
+                        rainfall = dict(rf) if isinstance(rf, dict) else {"rateMmHr": 50, "durationHr": 1}
                     else:
                         rainfall = {"rateMmHr": 50, "durationHr": 1}
                 except Exception:
@@ -171,6 +173,28 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
             floodDepth = (h/100)*1.2 if time>600 else (h/100)*0.3
         elevation = real_elev if real_elev is not None else (15.5 + (h%10)*0.2)
     velocity = floodDepth*0.7 + 0.05
+    # hydro context from stored flood stats (no invented capacity per §15)
+    hydro_ctx: dict = {}
+    try:
+        fobj = getattr(sim, "flood", None) if not isinstance(sim, dict) else (sim.get("flood") if isinstance(sim, dict) else None)
+        fstats = None
+        if fobj is not None:
+            fstats = fobj.get("stats") if isinstance(fobj, dict) else getattr(fobj, "stats", None)
+            if fstats is not None and not isinstance(fstats, dict):
+                try:
+                    fstats = fstats.model_dump(mode="json")  # type: ignore
+                except Exception:
+                    fstats = None
+        if isinstance(fstats, dict):
+            hydro_ctx = {
+                "mass_error": fstats.get("mass_error"),
+                "wbCount": fstats.get("wbCount"),
+                "surchargedDrains": fstats.get("surchargedDrains"),
+                "drainSurcharge": bool((fstats.get("surchargedDrains") or 0) > 0),
+                "totalRainMm": fstats.get("totalRainMm"),
+            }
+    except Exception:
+        hydro_ctx = {}
     return {
         "lat": lat, "lon": lon,
         "elevation": elevation,
@@ -188,7 +212,8 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
         "type": "simulated",
         "measured": {"elevation": elevation},
         "simulated": {"floodDepth": floodDepth, "velocity": velocity},
-        "derived": {"duration": "2h"}
+        "derived": {"duration": "2h"},
+        "hydro": hydro_ctx,
     }
 
 def affected_areas(sim: Any):
