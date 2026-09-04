@@ -40,6 +40,44 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       try {
         map = L.map(divRef.current!, { zoomControl:true, preferCanvas:true }).fitBounds(bounds)
         L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OSM Hot"}).addTo(map)
+        // Show loading if simulation is still processing (elevation/flood not yet ready)
+        const isProcessing = (simulation as any)?.status === "Running" || !(simulation as any)?.elevation?.stats || !(simulation as any)?.flood?.stats
+        if (isProcessing) {
+          const loadingDiv = document.createElement("div")
+          loadingDiv.innerHTML = '<div style="background: rgba(255,255,255,0.95); padding: 10px 16px; border-radius: 6px; font-size: 13px; color: #1e293b; border: 1px solid #cbd5e1; box-shadow: 0 2px 8px rgba(0,0,0,0.15); text-align: center;">Processing elevation & flood...<br><span style="font-size: 11px; color: #64748b;">This may take a few seconds for new simulations</span><br><span style="display:inline-block; width:16px; height:16px; border:2px solid #3b82f6; border-top-color: transparent; border-radius:50%; animation: spin 1s linear infinite; margin-top: 6px;"></span></div><style>@keyframes spin { to { transform: rotate(360deg); } }</style>'
+          loadingDiv.style.position = "absolute"
+          loadingDiv.style.top = "50%"
+          loadingDiv.style.left = "50%"
+          loadingDiv.style.transform = "translate(-50%, -50%)"
+          loadingDiv.style.zIndex = "1000"
+          loadingDiv.id = "processing-overlay"
+          divRef.current.appendChild(loadingDiv)
+          // Poll until ready
+          const poll = setInterval(async () => {
+            try {
+              const res = await fetch(`/api/simulations/${simulation.id}`)
+              const sim = await res.json()
+              if (sim.elevation?.stats && sim.flood?.stats) {
+                clearInterval(poll)
+                const el = document.getElementById("processing-overlay")
+                if (el) el.remove()
+                // Optionally reload the map overlays
+                try {
+                  const newElevUri = sim.elevation.elevationUri + `?v=${sim.elevation.stats.mean}`
+                  if (layerRefs.current.terrainOverlay) {
+                    layerRefs.current.terrainOverlay.setUrl(newElevUri)
+                    if (layers?.terrain?.visible) layerRefs.current.terrainOverlay.addTo(map)
+                  }
+                  const newFloodUri = sim.flood.floodUri.split("?")[0] + `?time=${time}&v=${sim.flood.stats.maxDepth}`
+                  if (layerRefs.current.floodOverlay) {
+                    layerRefs.current.floodOverlay.setUrl(newFloodUri)
+                  }
+                } catch {}
+              }
+            } catch {}
+          }, 1500)
+          setTimeout(() => clearInterval(poll), 30000)
+        }
         // flood overlay from TIF per simulation + time — Flood depth §9
         const timeIdx = time ?? 0
         const floodVersion = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
