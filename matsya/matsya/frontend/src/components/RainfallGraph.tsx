@@ -79,32 +79,32 @@ export default function RainfallGraph({ totalTime, maxRain, unit, points, onChan
   const pathD = curve.map((p,i)=> `${i===0?"M":"L"}${xScale(p.time)},${yScale(p.amount)}`).join(" ")
 
   return (
-    <div className="border rounded p-2 bg-white" data-testid="rainfall-graph" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
-      <svg ref={svgRef} width={width} height={height} className="w-full h-auto border bg-slate-50" onClick={handleSvgClick}>
+    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-2" data-testid="rainfall-graph" onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+      <svg ref={svgRef} width={width} height={height} className="w-full h-auto rounded-lg border border-slate-800 bg-slate-950" onClick={handleSvgClick}>
         {/* axes */}
-        <line x1={pad} y1={height-pad} x2={width-pad} y2={height-pad} stroke="#334155" />
-        <line x1={pad} y1={pad} x2={pad} y2={height-pad} stroke="#334155" />
-        <text x={width/2} y={height-5} textAnchor="middle" fontSize={10}>Time (hr) 0→{totalTime}hr</text>
-        <text x={10} y={15} fontSize={10} transform={`rotate(-90,10,${height/2})`} textAnchor="middle">Amount {unit==="rate"?"(mm/hr)":"(mm total)"} 0→{maxRain}</text>
+        <line x1={pad} y1={height-pad} x2={width-pad} y2={height-pad} stroke="#64748B" />
+        <line x1={pad} y1={pad} x2={pad} y2={height-pad} stroke="#64748B" />
+        <text x={width/2} y={height-5} textAnchor="middle" fontSize={10} fill="#94A3B8">Time (hr) 0→{totalTime}hr</text>
+        <text x={10} y={15} fontSize={10} fill="#94A3B8" transform={`rotate(-90,10,${height/2})`} textAnchor="middle">Amount {unit==="rate"?"(mm/hr)":"(mm total)"} 0→{maxRain}</text>
         {/* grid */}
         {[0,0.25,0.5,0.75,1].map(frac=>(
           <g key={frac}>
-            <line x1={xScale(frac*totalTime)} y1={pad} x2={xScale(frac*totalTime)} y2={height-pad} stroke="#e2e8f0" strokeDasharray="2,2" />
-            <line x1={pad} y1={yScale(frac*maxRain)} x2={width-pad} y2={yScale(frac*maxRain)} stroke="#e2e8f0" strokeDasharray="2,2" />
+            <line x1={xScale(frac*totalTime)} y1={pad} x2={xScale(frac*totalTime)} y2={height-pad} stroke="#1E293B" strokeDasharray="2,2" />
+            <line x1={pad} y1={yScale(frac*maxRain)} x2={width-pad} y2={yScale(frac*maxRain)} stroke="#1E293B" strokeDasharray="2,2" />
           </g>
         ))}
         {/* curve */}
-        <path d={pathD} fill="none" stroke="#3b82f6" strokeWidth={2} />
+        <path d={pathD} fill="none" stroke="#22D3EE" strokeWidth={2} />
         {/* points */}
         {sorted.map((p,i)=>(
           <g key={i} onMouseDown={(e)=>handleMouseDown(i,e)} onDoubleClick={()=>handleDoubleClick(i)} style={{cursor:"move"}}>
-            <circle cx={xScale(p.time)} cy={yScale(p.amount)} r={6} fill={dragging===i ? "#ef4444" : "#3b82f6"} stroke="white" strokeWidth={2} />
-            <text x={xScale(p.time)} y={yScale(p.amount)-10} textAnchor="middle" fontSize={9} fill="#334155">{p.time.toFixed(1)},{p.amount.toFixed(0)}</text>
+            <circle cx={xScale(p.time)} cy={yScale(p.amount)} r={6} fill={dragging===i ? "#FB7185" : "#22D3EE"} stroke="#0B0F17" strokeWidth={2} />
+            <text x={xScale(p.time)} y={yScale(p.amount)-10} textAnchor="middle" fontSize={9} fill="#94A3B8">{p.time.toFixed(1)},{p.amount.toFixed(0)}</text>
           </g>
         ))}
       </svg>
-      <div className="text-xs text-slate-500 mt-1">Click to add point, drag to move, double-click to delete. Smooth spline between points.</div>
-      <div className="text-xs font-mono">Equation: y = spline(x) with {points.length} points, {unit} 0→{maxRain}, time 0→{totalTime}hr</div>
+      <div className="text-[11px] text-slate-400 mt-1">Click to add point, drag to move, double-click to delete. Smooth spline between points.</div>
+      <div className="text-[11px] font-mono text-slate-500">Equation: y = spline(x) with {points.length} points, {unit} 0→{maxRain}, time 0→{totalTime}hr</div>
     </div>
   )
 }
