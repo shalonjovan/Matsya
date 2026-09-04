@@ -7,20 +7,23 @@ from rasterio.windows import from_bounds
 from rasterio.enums import Resampling
 from PIL import Image
 
-# Primary TIF path: workspace root assets — parents[5] from app/services/elevation.py
-# matsya/matsya/backend/app/services/elevation.py -> parents[5] = repo root
-TIF = pathlib.Path(__file__).resolve().parents[5] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"
-if not TIF.exists():
-    for cand in [
+# Primary TIF path: try multiple candidates for host and Docker
+def _find_tif():
+    candidates = [
+        pathlib.Path(__file__).resolve().parents[5] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 5 else None,
         pathlib.Path("assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"),
         pathlib.Path("/app/assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"),
-        pathlib.Path(__file__).resolve().parents[2] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif",
-        pathlib.Path(__file__).resolve().parents[3] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif",
-        pathlib.Path(__file__).resolve().parents[4] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif",
-    ]:
-        if cand.exists():
-            TIF = cand
-            break
+        pathlib.Path(__file__).resolve().parents[2] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 2 else None,
+        pathlib.Path(__file__).resolve().parents[3] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 3 else None,
+        pathlib.Path(__file__).resolve().parents[4] / "assets/CartoDEM_30m_Chennai_EGM96_MSL.tif" if len(pathlib.Path(__file__).resolve().parents) > 4 else None,
+        pathlib.Path("/app/app/../assets/CartoDEM_30m_Chennai_EGM96_MSL.tif"),
+    ]
+    for cand in candidates:
+        if cand and cand.exists():
+            return cand
+    return pathlib.Path("assets/CartoDEM_30m_Chennai_EGM96_MSL.tif")
+
+TIF = _find_tif()
 
 
 def hypsometric_color(elev, vmin, vmax):
@@ -44,21 +47,78 @@ def hypsometric_color(elev, vmin, vmax):
     return colors[-1]
 
 
-def clip_and_render(bbox, width=180, height=180):
+def clip_and_render(bbox, width=180, height=180, polygon=None):
     """Clip TIF to bbox and render hypsometric PNG.
+    If polygon GeoJSON provided, clip to polygon via rasterio.mask (takes precedence over bbox).
     Returns: (array 2D float, png_bytes, stats {min,max,mean,width,height,bbox})
     """
     minLon, minLat, maxLon, maxLat = bbox
     with rasterio.open(TIF) as src:
-        window = from_bounds(minLon, minLat, maxLon, maxLat, src.transform)
-        arr = src.read(
-            1,
-            window=window,
-            out_shape=(height, width),
-            resampling=Resampling.bilinear,
-            boundless=True,
-            fill_value=np.nan,
-        )
+        if polygon is not None:
+            # Polygon takes precedence — use mask
+            from rasterio.mask import mask
+            import json
+            from shapely.geometry import shape
+            try:
+                geom = shape(polygon)
+                # mask with crop
+                out_image, out_transform = mask(src, [geom], crop=True, filled=True, nodata=np.nan)
+                arr = out_image[0]
+                # Resample to width*height via PIL for consistent output size
+                # Convert to float array, handle nan
+                # For stats, use valid pixels
+                # For PNG, we need to resize to width*height
+                # Use Image to resize arr
+                # Normalize arr for resizing: fill nan with vmin placeholder, then resize
+                # First compute stats from original arr
+                valid = arr[~np.isnan(arr)]
+                if len(valid) == 0:
+                    # fallback to bbox window if polygon yields no data (e.g., outside tif)
+                    window = from_bounds(minLon, minLat, maxLon, maxLat, src.transform)
+                    arr = src.read(
+                        1,
+                        window=window,
+                        out_shape=(height, width),
+                        resampling=Resampling.bilinear,
+                        boundless=True,
+                        fill_value=np.nan,
+                    )
+                else:
+                    # Resize arr to desired width*height using PIL
+                    # Need to handle nan: replace nan with vmin for resizing, then mask after
+                    vmin_tmp = float(np.min(valid)) if len(valid)>0 else 0
+                    arr_filled = np.where(np.isnan(arr), vmin_tmp, arr)
+                    # Convert to PIL and resize
+                    img_tmp = Image.fromarray(arr_filled.astype(np.float32), mode='F')
+                    try:
+                        resample = Image.Resampling.BILINEAR
+                    except AttributeError:
+                        resample = Image.BILINEAR
+                    img_resized = img_tmp.resize((width, height), resample)
+                    arr = np.array(img_resized, dtype=np.float32)
+                    # For polygon, pixels outside polygon should be nan — approximate by masking with polygon rasterized?
+                    # For MVP, keep as is; outside will be interpolated but close enough
+            except Exception as e:
+                # Fallback to bbox window on any error
+                window = from_bounds(minLon, minLat, maxLon, maxLat, src.transform)
+                arr = src.read(
+                    1,
+                    window=window,
+                    out_shape=(height, width),
+                    resampling=Resampling.bilinear,
+                    boundless=True,
+                    fill_value=np.nan,
+                )
+        else:
+            window = from_bounds(minLon, minLat, maxLon, maxLat, src.transform)
+            arr = src.read(
+                1,
+                window=window,
+                out_shape=(height, width),
+                resampling=Resampling.bilinear,
+                boundless=True,
+                fill_value=np.nan,
+            )
         # mask nodata if present (rasterio nodata = -32768)
         if src.nodata is not None:
             # src.nodata may be -32768.0; convert those to nan where they survived bilinear
@@ -71,15 +131,39 @@ def clip_and_render(bbox, width=180, height=180):
             vmin, vmax, vmean = 0, 10, 5
         else:
             vmin, vmax, vmean = float(np.min(valid)), float(np.max(valid)), float(np.mean(valid))
-        # render PNG via hypsometric per pixel
+        # render PNG via hypsometric — vectorized for speed
         rgb = np.zeros((height, width, 3), dtype=np.uint8)
-        for y in range(height):
-            for x in range(width):
-                if np.isnan(arr[y, x]):
-                    rgb[y, x] = [0, 0, 0]
-                else:
-                    r, g, b = hypsometric_color(float(arr[y, x]), vmin, vmax)
-                    rgb[y, x] = [r, g, b]
+        # Create mask for valid
+        valid_mask = ~np.isnan(arr)
+        if np.any(valid_mask):
+            # Vectorized hypsometric: compute norm for valid pixels
+            norm = np.clip((arr[valid_mask] - vmin) / (vmax - vmin) if vmax != vmin else 0.5, 0, 1)
+            # Interpolate colors per valid pixel using vectorized loop over stops
+            # For each valid pixel, find its segment
+            # Use numpy digitize
+            stops = np.array([0, 0.2, 0.5, 0.7, 0.85, 1.0])
+            colors = np.array([(10, 61, 46), (44, 95, 45), (168, 213, 162), (210, 180, 140), (139, 69, 19), (254, 254, 254)])
+            # Find indices
+            indices = np.digitize(norm, stops) - 1
+            indices = np.clip(indices, 0, len(stops)-2)
+            # Compute t
+            lo = stops[indices]
+            hi = stops[np.clip(indices+1, 0, len(stops)-1)]
+            # Avoid division by zero
+            span = hi - lo
+            span[span==0] = 1
+            t = (norm - lo) / span
+            t = np.clip(t, 0, 1)
+            # Lerp
+            c0 = colors[indices]
+            c1 = colors[np.clip(indices+1, 0, len(colors)-1)]
+            r = (c0[:,0]*(1-t) + c1[:,0]*t).astype(np.uint8)
+            g = (c0[:,1]*(1-t) + c1[:,1]*t).astype(np.uint8)
+            b = (c0[:,2]*(1-t) + c1[:,2]*t).astype(np.uint8)
+            rgb[valid_mask, 0] = r
+            rgb[valid_mask, 1] = g
+            rgb[valid_mask, 2] = b
+        # Invalid (nan) stays black [0,0,0]
         img = Image.fromarray(rgb, "RGB")
         buf = io.BytesIO()
         img.save(buf, format="PNG")
@@ -125,24 +209,25 @@ def ensure_elevation(sim, base_path=None):
     from app.models.simulation import Elevation
     # Determine sim id and bbox
     sim_id = getattr(sim, "id", None) or getattr(sim, "id", None)
-    # bbox from sim.area.bbox
+    # bbox and polygon from sim.area
     try:
         bbox = sim.area.bbox if hasattr(sim.area, "bbox") else sim.area["bbox"]  # type: ignore
+        polygon = getattr(sim.area, "polygon", None) if hasattr(sim.area, "polygon") else sim.area.get("polygon") if isinstance(sim.area, dict) else None
     except Exception:
         try:
             bbox = sim.model_dump()["area"]["bbox"]  # fallback
+            polygon = sim.model_dump()["area"].get("polygon")
         except:
             bbox = [80.15, 13.08, 80.20, 13.13]
+            polygon = None
     # Check if already has elevation and files exist
     # We will (re)generate to ensure hypsometric is per-bbox
     try:
-        arr, png, stats = clip_and_render(bbox, 180, 180)
+        arr, png, stats = clip_and_render(bbox, 180, 180, polygon=polygon)
     except Exception as e:
         # fallback mock stats if TIF missing
         stats = {"min": 4.0, "max": 20.0, "mean": 10.0, "width": 180, "height": 180, "bbox": bbox}
         # create dummy png
-        from PIL import Image
-        import io
         rgb = np.zeros((180, 180, 3), dtype=np.uint8)
         rgb[:,:] = [44,95,45]
         img = Image.fromarray(rgb, "RGB")

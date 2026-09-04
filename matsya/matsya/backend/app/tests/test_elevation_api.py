@@ -5,12 +5,21 @@ def test_elevation_on_create():
     r=c.post("/api/simulations", json={"name":"elev-create","area":{"bbox":[80.15,13.08,80.20,13.13],"crs":"EPSG:4326"},"rainfall":{"rateMmHr":50,"durationHr":1}})
     assert r.status_code==201, r.text
     sim=r.json()
-    assert sim["elevation"] is not None, f"elevation is None: {sim}"
+    # For async, elevation may be None initially, poll until ready
+    import time
+    sim_id=sim["id"]
+    # Poll for elevation
+    for _ in range(10):
+        if sim.get("elevation") and sim["elevation"].get("stats"):
+            break
+        time.sleep(0.5)
+        r_poll=c.get(f"/api/simulations/{sim_id}")
+        sim=r_poll.json()
+    assert sim["elevation"] is not None, f"elevation is None after poll: {sim}"
     assert sim["elevation"]["elevationUri"].endswith("/elevation"), sim["elevation"]
     assert sim["elevation"]["stats"]["min"] < sim["elevation"]["stats"]["max"], sim["elevation"]["stats"]
     # file exists — check via store base_path and legacy relative paths
     import pathlib
-    sim_id=sim["id"]
     from app.services.simulation_store import store
     p_store = store.base_path / f"{sim_id}" / "elevation.png"
     p1 = pathlib.Path(f"matsya/matsya/backend/data/simulations/{sim_id}/elevation.png")

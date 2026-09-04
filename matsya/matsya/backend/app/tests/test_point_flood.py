@@ -15,6 +15,17 @@ def test_point_floodDepth():
     )
     assert r.status_code == 201, r.text
     sid = r.json()["id"]
+    # wait for async bg flood generation (coupled model slower than old bathtub)
+    import time as _t
+    for _ in range(45):
+        g = c.get(f"/api/simulations/{sid}")
+        try:
+            sj = g.json()
+        except Exception:
+            sj = {}
+        if sj.get("flood") is not None and (sj.get("flood") or {}).get("stats"):
+            break
+        _t.sleep(2)
     bbox = [80.15, 13.08, 80.20, 13.13]
     rainfall = {"rateMmHr": 50, "durationHr": 1}
     snaps, _, stats = generate_flood(bbox, rainfall, width=180, height=180, steps=3)

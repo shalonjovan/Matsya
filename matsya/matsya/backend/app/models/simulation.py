@@ -26,6 +26,26 @@ class Area(BaseModel):
         assert len(v) == 4 and v[0] < v[2] and v[1] < v[3], "invalid bbox"
         return v
 
+    @field_validator("polygon")
+    @classmethod
+    def check_polygon(cls, v):
+        if v is None:
+            return v
+        # Basic GeoJSON Polygon validation: type Polygon, coordinates [[[lon,lat]]], closed ring
+        assert isinstance(v, dict), "polygon must be GeoJSON dict"
+        assert v.get("type") == "Polygon", "polygon type must be Polygon"
+        coords = v.get("coordinates")
+        assert isinstance(coords, list) and len(coords) > 0, "polygon coordinates missing"
+        ring = coords[0]
+        assert len(ring) >= 4, "polygon ring must have >=4 points"
+        assert ring[0] == ring[-1], "polygon ring must be closed (first == last)"
+        # Each point [lon,lat]
+        for pt in ring:
+            assert isinstance(pt, list) and len(pt) >= 2, "polygon point must be [lon,lat]"
+            lon, lat = pt[0], pt[1]
+            assert -180 <= lon <= 180 and -90 <= lat <= 90, f"invalid lon/lat {pt}"
+        return v
+
 
 class Terrain(BaseModel):
     demUri: str | None = None
@@ -33,8 +53,28 @@ class Terrain(BaseModel):
 
 
 class Rainfall(BaseModel):
-    rateMmHr: float
-    durationHr: float
+    # Constant mode (legacy)
+    rateMmHr: float | None = None
+    durationHr: float | None = None
+    # Variable mode
+    mode: str = "constant"  # "constant" | "variable"
+    constantRate: float | None = None
+    totalTime: float | None = None
+    maxRain: float | None = None
+    unit: str | None = "rate"  # "rate" | "total"
+    points: list[dict] | None = None
+    curve: dict | None = None
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        # Handle legacy rateMmHr/durationHr without mode
+        if isinstance(obj, dict) and "mode" not in obj:
+            if "rateMmHr" in obj and obj["rateMmHr"] is not None:
+                obj = obj.copy()
+                obj["mode"] = "constant"
+                obj["constantRate"] = obj["rateMmHr"]
+                # keep durationHr as is
+        return super().model_validate(obj, *args, **kwargs)
 
 
 class Drainage(BaseModel):
@@ -83,6 +123,15 @@ class Simulation(BaseModel):
     area: Area
     terrain: Terrain | None = None
     rainfall: Rainfall
+
+    @field_validator("rainfall", mode="before")
+    @classmethod
+    def check_rainfall(cls, v):
+        if isinstance(v, dict) and "mode" not in v and "rateMmHr" in v and v["rateMmHr"] is not None:
+            v = v.copy()
+            v["mode"] = "constant"
+            v["constantRate"] = v["rateMmHr"]
+        return v
     drainage: Drainage | None = None
     rivers: Any | None = None
     canals: Any | None = None

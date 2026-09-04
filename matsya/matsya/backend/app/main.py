@@ -7,6 +7,7 @@ from app.routers.analysis import router as analysis_router
 from app.routers.exports import router as exports_router
 from app.routers.live import router as live_router
 from app.routers.hydro import router as hydro_router, sim_hydro_router
+from app.routers.rainfall import router as rainfall_router
 from app.routers.elevation import router as elevation_router, dem_router
 from app.routers.flood import router as flood_router
 
@@ -21,6 +22,7 @@ app.include_router(live_router)
 app.include_router(hydro_router)
 app.include_router(sim_hydro_router)
 app.include_router(elevation_router)
+app.include_router(rainfall_router)
 app.include_router(dem_router)
 app.include_router(flood_router)
 @app.get("/api/health")

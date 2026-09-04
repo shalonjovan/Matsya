@@ -12,3 +12,4 @@ shapely
 pyproj
 networkx
 fiona
+Pillow

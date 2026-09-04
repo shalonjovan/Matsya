@@ -1,12 +1,28 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { Simulation } from "../types/simulation"
 import "leaflet/dist/leaflet.css"
 import { drainColor } from "../utils/hydro"
+
+const BASEMAP_TILES: Record<string, { url: string, attr: string }> = {
+  dark: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    attr: "&copy; Esri &copy; OpenStreetMap"
+  },
+  hot: {
+    url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",
+    attr: "&copy; OpenStreetMap contributors, Humanitarian OpenStreetMap Team"
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attr: "&copy; Esri World Imagery"
+  }
+}
 
 export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect }: any) {
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const layerRefs = useRef<any>({})
+  const [basemap, setBasemap] = useState<"dark" | "hot" | "satellite">("hot")
   // Track current simulation id to detect changes
   const prevSimIdRef = useRef<string | null>(null)
   useEffect(()=>{
@@ -39,7 +55,47 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       const bounds: any = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
       try {
         map = L.map(divRef.current!, { zoomControl:true, preferCanvas:true }).fitBounds(bounds)
-        L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png",{maxZoom:19, attribution:"© OSM Hot"}).addTo(map)
+        const bConfig = BASEMAP_TILES[basemap] || BASEMAP_TILES.dark
+        const baseLayer = L.tileLayer(bConfig.url, { maxZoom: 19, attribution: bConfig.attr }).addTo(map)
+        layerRefs.current.baseLayer = baseLayer
+        // Show loading if simulation is still processing (elevation/flood not yet ready)
+        const isProcessing = (simulation as any)?.status === "Running" || !(simulation as any)?.elevation?.stats || !(simulation as any)?.flood?.stats
+        if (isProcessing) {
+          const loadingDiv = document.createElement("div")
+          loadingDiv.innerHTML = '<div style="background: rgba(11,15,23,0.95); padding: 10px 16px; border-radius: 12px; font-size: 13px; color: #f1f5f9; border: 1px solid #334155; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; font-family: monospace;">Processing elevation & flood...<br><span style="font-size: 11px; color: #94a3b8;">This may take a few seconds for new simulations</span><br><span style="display:inline-block; width:16px; height:16px; border:2px solid #22d3ee; border-top-color: transparent; border-radius:50%; animation: spin 1s linear infinite; margin-top: 6px;"></span></div><style>@keyframes spin { to { transform: rotate(360deg); } }</style>'
+          loadingDiv.style.position = "absolute"
+          loadingDiv.style.top = "50%"
+          loadingDiv.style.left = "50%"
+          loadingDiv.style.transform = "translate(-50%, -50%)"
+          loadingDiv.style.zIndex = "1000"
+          loadingDiv.id = "processing-overlay"
+          divRef.current.appendChild(loadingDiv)
+          // Poll until ready
+          const poll = setInterval(async () => {
+            try {
+              const res = await fetch(`/api/simulations/${simulation.id}`)
+              const sim = await res.json()
+              if (sim.elevation?.stats && sim.flood?.stats) {
+                clearInterval(poll)
+                const el = document.getElementById("processing-overlay")
+                if (el) el.remove()
+                // Optionally reload the map overlays
+                try {
+                  const newElevUri = sim.elevation.elevationUri + `?v=${sim.elevation.stats.mean}`
+                  if (layerRefs.current.terrainOverlay) {
+                    layerRefs.current.terrainOverlay.setUrl(newElevUri)
+                    if (layers?.terrain?.visible) layerRefs.current.terrainOverlay.addTo(map)
+                  }
+                  const newFloodUri = sim.flood.floodUri.split("?")[0] + `?time=${time}&v=${sim.flood.stats.maxDepth}`
+                  if (layerRefs.current.floodOverlay) {
+                    layerRefs.current.floodOverlay.setUrl(newFloodUri)
+                  }
+                } catch {}
+              }
+            } catch {}
+          }, 1500)
+          setTimeout(() => clearInterval(poll), 30000)
+        }
         // flood overlay from TIF per simulation + time — Flood depth §9
         const timeIdx = time ?? 0
         const floodVersion = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
@@ -121,6 +177,18 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         if (terrainVisibleInit && layerRefs.current.terrainOverlay) {
           // already added above if visible
         }
+
+        // Domain AOI square boundary outline
+        try {
+          const aoiBoundary = (L as any).rectangle(bounds, {
+            color: "#06b6d4",
+            weight: 1.5,
+            fill: false,
+            dashArray: "6, 6",
+            interactive: false
+          }).addTo(map)
+          layerRefs.current.aoiBoundary = aoiBoundary
+        } catch {}
         map.on("click", (e:any)=>{
           const lat=e.latlng.lat, lon=e.latlng.lng
           fetch(`/api/simulations/${simulation.id}/point?lat=${lat}&lon=${lon}&time=${time}`).then(r=>r.json()).then(j=>onPointSelect?.(j)).catch(()=>onPointSelect?.({lat,lon, elevation:15.5, floodDepth:0.42, velocity:0.3}))
@@ -308,5 +376,49 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       } catch {}
     }
   },[layers, time])
-  return <div ref={divRef} className="w-full h-full min-h-[500px] bg-slate-900 leaflet-container" data-testid="map-view" style={{width:"100%", height:"100%", minHeight:"500px"}} />
+
+  // Handle basemap tile layer switching
+  useEffect(() => {
+    if (!mapRef.current) return
+    const L = (window as any).L
+    if (!L) return
+    try {
+      if (layerRefs.current.baseLayer) {
+        mapRef.current.removeLayer(layerRefs.current.baseLayer)
+      }
+      const bConfig = BASEMAP_TILES[basemap] || BASEMAP_TILES.dark
+      const newBaseLayer = L.tileLayer(bConfig.url, { maxZoom: 19, attribution: bConfig.attr }).addTo(mapRef.current)
+      newBaseLayer.bringToBack?.()
+      layerRefs.current.baseLayer = newBaseLayer
+    } catch {}
+  }, [basemap])
+
+  return (
+    <div className="relative w-full h-full min-h-[500px]">
+      <div
+        ref={divRef}
+        className="w-full h-full min-h-[500px] bg-[#070A0F] leaflet-container"
+        data-testid="map-view"
+        style={{width:"100%", height:"100%", minHeight:"500px"}}
+      />
+
+      {/* Floating Basemap Selector */}
+      <div className="absolute bottom-4 left-4 z-[400] flex items-center gap-1 p-1 rounded-xl glass-panel border border-slate-700/80 shadow-2xl text-[11px] font-mono">
+        <span className="text-[10px] text-slate-400 px-2 uppercase font-semibold">Basemap</span>
+        {(["dark", "hot", "satellite"] as const).map(b => (
+          <button
+            key={b}
+            onClick={() => setBasemap(b)}
+            className={`px-2.5 py-1 rounded-lg transition ${
+              basemap === b
+                ? "bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            {b === "dark" ? "Dark" : b === "hot" ? "HOT" : "Satellite"}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }

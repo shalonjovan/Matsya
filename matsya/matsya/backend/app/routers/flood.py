@@ -9,6 +9,46 @@ from app.services.simulation_store import store
 router = APIRouter(prefix="/api/simulations/{sim_id}/flood", tags=["flood"])
 
 
+@router.get("/stats")
+def get_flood_stats(sim_id: str):
+    """Return stored flood stats incl. mass_error, wbCount, surchargedDrains."""
+    try:
+        sim = store.get(sim_id)
+    except FileNotFoundError:
+        raise HTTPException(404, "simulation not found")
+    except Exception as e:
+        raise HTTPException(404, f"simulation not found: {e}")
+    # prefer in-memory stats on sim
+    try:
+        if sim.flood is not None and getattr(sim.flood, "stats", None):
+            s = sim.flood.stats
+            if isinstance(s, dict):
+                return s
+            try:
+                return s.model_dump(mode="json")  # type: ignore
+            except Exception:
+                pass
+            try:
+                return dict(vars(s))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    # fall back to flood.json on disk
+    candidates = [
+        store.base_path / f"{sim_id}" / "flood" / "flood.json",
+        Path(f"matsya/matsya/backend/data/simulations/{sim_id}/flood/flood.json"),
+        Path(f"backend/data/simulations/{sim_id}/flood/flood.json"),
+    ]
+    for p in candidates:
+        try:
+            if p.exists():
+                return json.loads(p.read_text())
+        except Exception:
+            continue
+    raise HTTPException(404, f"flood stats not found for {sim_id}")
+
+
 @router.get("")
 def get_flood(sim_id: str, time: int = 0):
     # Validate sim exists

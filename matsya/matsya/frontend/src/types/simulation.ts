@@ -7,8 +7,15 @@ export interface Area {
 }
 
 export interface Rainfall {
-  rateMmHr: number;
-  durationHr: number;
+  rateMmHr?: number | null;
+  durationHr?: number | null;
+  mode?: "constant" | "variable";
+  constantRate?: number | null;
+  totalTime?: number | null;
+  maxRain?: number | null;
+  unit?: "rate" | "total" | null;
+  points?: {time: number, amount: number}[] | null;
+  curve?: {values: number[], method: string, unit: string} | null;
 }
 
 export interface Terrain {
@@ -60,7 +67,7 @@ export interface Simulation {
   id: string;
   name: string;
   area: { bbox: [number, number, number, number]; crs: string; polygon?: any };
-  rainfall: { rateMmHr: number; durationHr: number };
+  rainfall: Rainfall;
   status: Status;
   terrain?: any;
   drainage?: any;
