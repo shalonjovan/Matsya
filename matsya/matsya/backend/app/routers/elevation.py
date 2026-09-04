@@ -26,7 +26,8 @@ def get_elevation(sim_id: str):
         Path(f"backend/data/simulations/{sim_id}/elevation.png"),
         Path(f"data/simulations/{sim_id}/elevation.png"),
         Path(__file__).resolve().parents[2] / "data" / "simulations" / f"{sim_id}" / "elevation.png",
-        Path(__file__).resolve().parents[5] / "assets" / f"elevation_{sim_id}.png",
+        Path("/app/assets") / f"elevation_{sim_id}.png",
+        Path(__file__).resolve().parents[2] / "assets" / f"elevation_{sim_id}.png",
     ]
     # If not found and sim has no elevation, try to generate on fly via ensure_elevation
     for p in candidates:
