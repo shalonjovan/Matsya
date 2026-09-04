@@ -1,0 +1,74 @@
+{
+  "id": "f43b178d-95cb-4037-a02a-973033767fd7",
+  "name": "e2e-hydro",
+  "area": {
+    "bbox": [
+      80.15,
+      13.08,
+      80.2,
+      13.13
+    ],
+    "crs": "EPSG:4326",
+    "polygon": null
+  },
+  "terrain": null,
+  "rainfall": {
+    "rateMmHr": 50.0,
+    "durationHr": 1.0
+  },
+  "drainage": null,
+  "rivers": null,
+  "canals": null,
+  "waterBodies": null,
+  "roads": null,
+  "buildings": null,
+  "landCover": null,
+  "boundaries": null,
+  "parameters": null,
+  "results": null,
+  "elevation": {
+    "elevationUri": "/api/simulations/f43b178d-95cb-4037-a02a-973033767fd7/elevation",
+    "stats": {
+      "min": 4.2086639404296875,
+      "max": 73.32766723632812,
+      "mean": 15.528833389282227,
+      "width": 180,
+      "height": 180,
+      "bbox": [
+        80.15,
+        13.08,
+        80.2,
+        13.13
+      ]
+    },
+    "width": 180,
+    "height": 180
+  },
+  "flood": {
+    "floodUri": "/api/simulations/f43b178d-95cb-4037-a02a-973033767fd7/flood?time=0",
+    "stats": {
+      "maxDepth": 0.5077746510505676,
+      "floodedArea": 0.0063,
+      "meanDepth": 0.2863767743110657,
+      "width": 180,
+      "height": 180,
+      "steps": 3,
+      "bbox": [
+        80.15,
+        13.08,
+        80.2,
+        13.13
+      ]
+    },
+    "width": 180,
+    "height": 180,
+    "steps": 3
+  },
+  "hydro": null,
+  "metadata": {
+    "created": "2026-09-02T09:46:51.123819Z",
+    "updated": "2026-09-02T09:46:51.123832Z",
+    "status": "Ready"
+  },
+  "status": "Ready"
+}

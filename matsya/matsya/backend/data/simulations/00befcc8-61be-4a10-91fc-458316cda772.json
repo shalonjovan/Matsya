@@ -1,0 +1,78 @@
+{
+  "id": "00befcc8-61be-4a10-91fc-458316cda772",
+  "name": "Velachery Monsoon Test",
+  "area": {
+    "bbox": [
+      80.19,
+      12.96,
+      80.24,
+      13.01
+    ],
+    "crs": "EPSG:4326",
+    "polygon": null
+  },
+  "terrain": null,
+  "rainfall": {
+    "rateMmHr": 60.0,
+    "durationHr": 2.0
+  },
+  "drainage": null,
+  "rivers": null,
+  "canals": null,
+  "waterBodies": null,
+  "roads": null,
+  "buildings": null,
+  "landCover": null,
+  "boundaries": null,
+  "parameters": {
+    "cfl": 0.7,
+    "dt": null,
+    "theta": null
+  },
+  "results": null,
+  "elevation": {
+    "elevationUri": "/api/simulations/00befcc8-61be-4a10-91fc-458316cda772/elevation",
+    "stats": {
+      "min": -35.09507369995117,
+      "max": 75.32687377929688,
+      "mean": 14.151512145996094,
+      "width": 180,
+      "height": 180,
+      "bbox": [
+        80.19,
+        12.96,
+        80.24,
+        13.01
+      ]
+    },
+    "width": 180,
+    "height": 180
+  },
+  "flood": {
+    "floodUri": "/api/simulations/00befcc8-61be-4a10-91fc-458316cda772/flood?time=0",
+    "stats": {
+      "maxDepth": 1.2064732313156128,
+      "floodedArea": 0.0036,
+      "meanDepth": 0.9458128213882446,
+      "width": 180,
+      "height": 180,
+      "steps": 3,
+      "bbox": [
+        80.19,
+        12.96,
+        80.24,
+        13.01
+      ]
+    },
+    "width": 180,
+    "height": 180,
+    "steps": 3
+  },
+  "hydro": null,
+  "metadata": {
+    "created": "2026-09-02T10:14:32.260135Z",
+    "updated": "2026-09-02T10:14:32.260138Z",
+    "status": "Ready"
+  },
+  "status": "Ready"
+}
