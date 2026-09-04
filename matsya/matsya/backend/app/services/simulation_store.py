@@ -1,6 +1,7 @@
 import json
 import uuid
 import time
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
@@ -80,44 +81,79 @@ class SimulationStore:
 
     def create(self, data: dict) -> Simulation:
         sim = Simulation.model_validate(data)
-        # ensure rainfall curve if variable
+        # Set initial status to Processing for elevation/flood
         try:
-            if sim.rainfall and sim.rainfall.mode == "variable" and sim.rainfall.points:
-                from app.services.rainfall_curve import interpolate
-                # Generate curve
-                totalTime = sim.rainfall.totalTime or 6
-                maxRain = sim.rainfall.maxRain or 100
-                unit = sim.rainfall.unit or "rate"
-                # steps: totalTime * 12 (5min steps per hour) or at least 12
-                steps = max(12, int(totalTime * 12))
-                res = interpolate(sim.rainfall.points, totalTime=totalTime, maxRain=maxRain, unit=unit, steps=steps)
-                sim.rainfall.curve = res
-        except Exception as e:
-            print(f"rainfall curve generation failed: {e}")
-            import traceback
-            traceback.print_exc()
-        # ensure elevation (hypsometric PNG) on creation
-        try:
-            from app.services.elevation import ensure_elevation
-
-            ensure_elevation(sim)
-        except Exception as e:
-            print(f"elevation generation failed: {e}")
-            import traceback
-
-            traceback.print_exc()
-        # ensure flood PNG on creation
-        try:
-            from app.services.flood import ensure_flood
-
-            ensure_flood(sim)
-        except Exception as e:
-            print(f"flood generation failed: {e}")
-            import traceback
-
-            traceback.print_exc()
+            sim.status = StatusEnum.Running
+            sim.metadata.status = StatusEnum.Running
+        except: pass
+        # Save immediately with Processing status so frontend can poll
         self._save(sim)
         _list_cache["data"] = None
+        # Run heavy generation in background thread to avoid blocking POST
+        def _bg_gen(sid, sim_data):
+            try:
+                # Need to reload sim from data
+                s = Simulation.model_validate(sim_data)
+                s.id = sid
+                # rainfall curve
+                try:
+                    if s.rainfall and s.rainfall.mode == "variable" and s.rainfall.points:
+                        from app.services.rainfall_curve import interpolate
+                        totalTime = s.rainfall.totalTime or 6
+                        maxRain = s.rainfall.maxRain or 100
+                        unit = s.rainfall.unit or "rate"
+                        steps = max(12, int(totalTime * 12))
+                        res = interpolate(s.rainfall.points, totalTime=totalTime, maxRain=maxRain, unit=unit, steps=steps)
+                        s.rainfall.curve = res
+                except Exception as e:
+                    print(f"bg rainfall curve failed: {e}")
+                # elevation
+                try:
+                    from app.services.elevation import ensure_elevation
+                    ensure_elevation(s)
+                except Exception as e:
+                    print(f"bg elevation failed: {e}")
+                # flood
+                try:
+                    from app.services.flood import ensure_flood
+                    ensure_flood(s)
+                except Exception as e:
+                    print(f"bg flood failed: {e}")
+                # Mark completed
+                try:
+                    s.status = StatusEnum.Completed
+                    s.metadata.status = StatusEnum.Completed
+                    s.metadata.updated = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
+                except: pass
+                # Save again with completed status and elevation/flood
+                try:
+                    # Need to save via store (use self)
+                    self._save(s)
+                    _list_cache["data"] = None
+                except Exception as e:
+                    print(f"bg save failed: {e}")
+            except Exception as e:
+                print(f"bg gen failed: {e}")
+                import traceback
+                traceback.print_exc()
+        # Start background thread
+        try:
+            # Pass sim data as dict to avoid race
+            sim_data = sim.model_dump(mode="python")
+            thread = threading.Thread(target=_bg_gen, args=(sim.id, sim_data), daemon=True)
+            thread.start()
+        except Exception as e:
+            print(f"bg thread start failed: {e}")
+            # Fallback to synchronous
+            try:
+                from app.services.elevation import ensure_elevation
+                ensure_elevation(sim)
+            except: pass
+            try:
+                from app.services.flood import ensure_flood
+                ensure_flood(sim)
+            except: pass
+            self._save(sim)
         return sim
 
     def get(self, sim_id: str) -> Simulation:
