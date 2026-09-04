@@ -69,6 +69,15 @@ const HOTSPOTS = [
   { name: "OMR IT Corridor", bbox: ["80.22", "12.92", "80.27", "12.97"] },
 ]
 
+export function boundsToBboxStrings(bounds: any): { minLon: string, maxLon: string, minLat: string, maxLat: string } {
+  return {
+    minLon: String(bounds.getWest().toFixed(5)),
+    maxLon: String(bounds.getEast().toFixed(5)),
+    minLat: String(bounds.getSouth().toFixed(5)),
+    maxLat: String(bounds.getNorth().toFixed(5)),
+  }
+}
+
 export default function CreateWizard({ open, onClose, onCreated, editSim }: Props) {
   const isEdit = !!editSim
   const [step, setStep] = useState(1)
@@ -172,24 +181,32 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
         if (e.layerType === "rectangle") {
           drawnItems.clearLayers()
           drawnItems.addLayer(e.layer)
-          const bounds = (e.layer as any).getBounds()
-          setMinLon(String(bounds.getWest().toFixed(5)))
-          setMaxLon(String(bounds.getEast().toFixed(5)))
-          setMinLat(String(bounds.getSouth().toFixed(5)))
-          setMaxLat(String(bounds.getNorth().toFixed(5)))
+          const b = boundsToBboxStrings((e.layer as any).getBounds())
+          setMinLon(b.minLon); setMaxLon(b.maxLon); setMinLat(b.minLat); setMaxLat(b.maxLat)
           setPolygon(null)
         }
       })
+      // Live sync while dragging/resizing via the Edit toolbar: leaflet-draw only
+      // fires draw:edited on Save, so without these the coords stay frozen mid-edit.
+      const syncLiveBounds = (e:any)=>{
+        try {
+          const layer = e?.layer as any
+          if (layer && layer.getBounds) {
+            const b = boundsToBboxStrings(layer.getBounds())
+            setMinLon(b.minLon); setMaxLon(b.maxLon); setMinLat(b.minLat); setMaxLat(b.maxLat)
+            setPolygon(null)
+          }
+        } catch {}
+      }
+      map.on((L as any).Draw.Event.EDITMOVE, syncLiveBounds)
+      map.on((L as any).Draw.Event.EDITRESIZE, syncLiveBounds)
       map.on((L as any).Draw.Event.EDITED, (e:any)=>{
         const layers = e.layers.getLayers()
         if (layers.length>0) {
           const layer = layers[0] as any
           if (layer.getBounds) {
-            const bounds = layer.getBounds()
-            setMinLon(String(bounds.getWest().toFixed(5)))
-            setMaxLon(String(bounds.getEast().toFixed(5)))
-            setMinLat(String(bounds.getSouth().toFixed(5)))
-            setMaxLat(String(bounds.getNorth().toFixed(5)))
+            const b = boundsToBboxStrings(layer.getBounds())
+            setMinLon(b.minLon); setMaxLon(b.maxLon); setMinLat(b.minLat); setMaxLat(b.maxLat)
             setPolygon(null)
           } else if (layer.toGeoJSON) {
             const gj = layer.toGeoJSON()
