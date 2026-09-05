@@ -1,7 +1,9 @@
 
-import { describe, it, expect, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { describe, it, expect, vi, afterEach } from "vitest"
+import { render, screen, fireEvent } from "@testing-library/react"
 import CreateWizard, { boundsToBboxStrings } from "../components/CreateWizard"
+
+afterEach(() => { vi.unstubAllGlobals() })
 
 describe("boundsToBboxStrings", ()=>{
   it("converts leaflet bounds to 5-decimal bbox strings", ()=>{
@@ -19,5 +21,24 @@ describe("CreateWizard", ()=>{
     render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} />)
     expect(screen.getByText("Create Simulation")).toBeInTheDocument()
     expect(screen.getByText("Name")).toBeInTheDocument()
+  })
+
+  it("shows live drain counts from hydro summary on step 3", async ()=>{
+    vi.stubGlobal("fetch", vi.fn(async (url: any) => {
+      if (String(url).includes("/api/hydro/summary")) {
+        return { ok: true, json: async () => ({ drains: 52, waterbodies: 4086, rivers: 876, snapped_to_waterbody: 20, to_river: 7, to_sea: 25, unsnapped: 0 }) }
+      }
+      throw new Error("unexpected fetch " + url)
+    }))
+    render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} />)
+    fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
+    expect(await screen.findByText(/connected \(52 micro\/macro/)).toBeInTheDocument()
+  })
+
+  it("falls back to missing-drain warning when summary fetch fails", async ()=>{
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline") }))
+    render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} />)
+    fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
+    expect(await screen.findByText(/without drainage/)).toBeInTheDocument()
   })
 })

@@ -101,6 +101,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [areaMode, setAreaMode] = useState<"search"|"rect"|"chennai">("search")
+  const [hydroSummary, setHydroSummary] = useState<any>(null)
   const rectMapRef = useRef<HTMLDivElement>(null)
   const rectMapInstance = useRef<any>(null)
   const rectLayerRef = useRef<any>(null)
@@ -135,6 +136,15 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [open, onClose])
+
+  // Live drain availability from the backend asset store (micro/macro KML).
+  // Falls back to the sim's attached dataset flag if the fetch fails (offline).
+  useEffect(()=>{
+    if (!open) return
+    let alive = true
+    fetch("/api/hydro/summary").then(r=>r.json()).then(j=>{ if (alive) setHydroSummary(j) }).catch(()=>{})
+    return ()=>{ alive = false }
+  },[open])
 
   // Initialize draw map when rect tab is active — rectangle draw
   useEffect(()=>{
@@ -257,7 +267,10 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const isVariable = rainfallMode === "variable"
   const rainValid = isVariable ? (points.length>=2 && !isNaN(parseFloat(totalTime)) && !isNaN(parseFloat(maxRain))) : rainfallValid
 
-  const drainMissing = !(editSim as any)?.drainage?.uri
+  const drainMissing = hydroSummary ? (hydroSummary.drains ?? 0) === 0 : !(editSim as any)?.drainage?.uri
+  const drainLine = hydroSummary && !drainMissing
+    ? `connected (${hydroSummary.drains} micro/macro → ${hydroSummary.snapped_to_waterbody ?? 0} waterbodies, ${hydroSummary.to_river ?? 0} river, ${hydroSummary.to_sea ?? 0} sea)`
+    : "connected (10,276 SWD lines)"
 
   const applyPreset = (p: typeof PRESETS[0]) => {
     setRate(String(p.rate))
@@ -773,7 +786,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                   ) : (
                     <span className="text-emerald-400 flex items-center gap-1 font-medium">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      connected (10,276 SWD lines)
+                      {drainLine}
                     </span>
                   )}
                 </div>
