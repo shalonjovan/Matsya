@@ -424,6 +424,44 @@ def _drain_endpoints(bbox, width, height, max_n: int = 30):
     return out
 
 
+def _spill_ring(mask, radius=2):
+    """Shoreline ring: cells within `radius` of mask, excluding mask itself."""
+    import numpy as np
+    m = np.asarray(mask, dtype=bool)
+    if not np.any(m):
+        return None
+    h, w = m.shape
+    dilated = m.copy()
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            if dx == 0 and dy == 0:
+                continue
+            shifted = np.roll(np.roll(m, dy, axis=0), dx, axis=1)
+            # kill wraparound rows/cols introduced by roll
+            if dy > 0:
+                shifted[:dy, :] = False
+            elif dy < 0:
+                shifted[dy:, :] = False
+            if dx > 0:
+                shifted[:, :dx] = False
+            elif dx < 0:
+                shifted[:, dx:] = False
+            dilated |= shifted
+    ring = dilated & ~m
+    return ring if np.any(ring) else None
+
+
+def _pond_volume(surface, ring, vol_m3, cell_area):
+    """Spread vol_m3 evenly over ring cells as depth; returns mean added depth."""
+    import numpy as np
+    n = int(np.count_nonzero(ring))
+    if n == 0 or vol_m3 <= 0 or cell_area <= 0:
+        return 0.0
+    d = float(vol_m3) / n / float(cell_area)
+    surface[ring] += d
+    return d
+
+
 def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None):
     """Generate flood snapshots per bbox+rainfall using DEM low spots.
 
@@ -545,6 +583,14 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         wb_infos = []
     wb_masks = _rasterize_masks(wb_infos, bbox, width, height) if wb_infos else []
     wb_objs = []
+    wb_rings = []
+    try:
+        for m in (wb_masks or []):
+            wb_rings.append(_spill_ring(m, radius=2) if m is not None else None)
+    except Exception:
+        wb_rings = [None] * len(wb_infos or [])
+    spilled_total = 0.0
+    overtopped = set()
     wb_observed = 0
     try:
         from app.services.hydro.waterbody import WaterBody
@@ -666,6 +712,27 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                             pass
                 except Exception:
                     continue
+        # direct rainfall onto lake surfaces goes straight into storage
+        # (rain falls on water too); compensate the surface grid so mass closes
+        direct_rain_vol = 0.0
+        if rain_inc_m and wb_objs:
+            try:
+                for wb in wb_objs:
+                    try:
+                        q_rain = rain_inc_m * float(getattr(wb, "area_m2", 0.0)) / dt if dt else 0.0
+                    except Exception:
+                        q_rain = 0.0
+                    if q_rain > 0:
+                        wb.inflow(q_rain)
+                        direct_rain_vol += q_rain * dt
+            except Exception:
+                pass
+        if direct_rain_vol > 0:
+            try:
+                surface -= direct_rain_vol / area_m2
+                surface = np.maximum(surface, 0.0)
+            except Exception:
+                pass
         # distribute wb inflow evenly, step waterbodies
         if wb_objs and wb_inflow_vol > 0:
             try:
@@ -677,10 +744,20 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                         pass
             except Exception:
                 pass
-        for wb in wb_objs or []:
+        for wi, wb in enumerate(wb_objs or []):
             try:
                 out_q = wb.step(dt)
-                total_outflow_vol += float(out_q) * dt
+                out_vol = float(out_q) * dt
+                if out_vol > 0:
+                    overtopped.add(wi)
+                    ring = wb_rings[wi] if wi < len(wb_rings) else None
+                    if ring is not None:
+                        # pond spill on the shoreline: it stays in-domain (surface
+                        # already measures it), so do NOT count it as outflow
+                        _pond_volume(surface, ring, out_vol, cell_area)
+                        spilled_total += out_vol
+                    else:
+                        total_outflow_vol += out_vol  # no shore: legacy count-as-outflow
             except Exception:
                 continue
         # composite depth: pond surcharge into surface (persists), then lift inside waterbodies for display
@@ -780,6 +857,8 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "wbCount": int(len(wb_objs or [])),
         "wbObserved": int(wb_observed),
         "surchargedDrains": int(surcharged_now),
+        "spillVolumeM3": round(float(spilled_total), 1),
+        "overtoppedLakes": int(len(overtopped)),
         "totalRainMm": total_rain_f,
         "areaKm2": float(area_m2 / 1e6),
     }
