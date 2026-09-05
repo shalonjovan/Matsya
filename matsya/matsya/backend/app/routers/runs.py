@@ -1,7 +1,7 @@
 
 from fastapi import APIRouter, HTTPException
 from app.services.simulation_store import store
-from app.services.engine import anuga_runner as engine
+from app.services.engine import swmm_runner as engine
 
 router = APIRouter(prefix="/api/simulations/{sim_id}", tags=["runs"])
 

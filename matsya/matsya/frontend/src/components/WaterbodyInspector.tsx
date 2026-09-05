@@ -100,6 +100,12 @@ export default function WaterbodyInspector({ waterbodyId }: { waterbodyId?: stri
           </span>
         </div>
 
+        {wb.depth_source && wb.depth_source !== "assumed" && (
+          <div className="p-2 rounded-lg bg-emerald-950/40 border border-emerald-800/60 text-[11px] font-mono text-emerald-300">
+            Observed depth ({wb.depth_source}){wb.obs_depth_m != null ? ` • mean ${Number(wb.obs_depth_m).toFixed(2)} m` : ""}{wb.bathy_bed_min != null ? ` • bed ${Number(wb.bathy_bed_min).toFixed(1)} m` : ""}
+          </div>
+        )}
+
         {/* Formula and helper text - Commented out to declutter waterbody inspector */}
         {/*
         <div className="text-[10px] text-slate-400 font-mono">

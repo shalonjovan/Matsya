@@ -92,10 +92,37 @@ def waterbodies(limit: int = 20):
     data, snap_res, G = _load_and_snap()
     try:
         enriched = enrich_waterbodies(data["waterbodies"].head(limit), data["dem"])
+        try:
+            from app.services.hydro.waterbody_enrich import lookup_observations
+            has_obs = True
+        except Exception:
+            lookup_observations = None  # type: ignore
+            has_obs = False
         # Convert to list
+        def _fin(x):
+            try:
+                f = float(x)
+                if f != f or f in (float("inf"), float("-inf")):
+                    return None
+                return f
+            except Exception:
+                return None
         out=[]
-        for _, row in enriched.iterrows():
-            out.append({"id": int(row["id"]) if "id" in row and row["id"] is not None else None, "area_m2": float(row.get("area_m2",0)), "centroid": [float(row.get("centroid_lon",0)), float(row.get("centroid_lat",0))], "dem_elev": float(row.get("dem_elev",0)) if row.get("dem_elev") is not None else None, "spill_crest": float(row.get("spill_crest",0)), "geometry": row.geometry.__geo_interface__ if hasattr(row.geometry, "__geo_interface__") else None})
+        for idx, row in enriched.iterrows():
+            item = {"id": int(row["id"]) if "id" in row and row["id"] is not None else None, "area_m2": _fin(row.get("area_m2", 0)) or 0.0, "centroid": [float(row.get("centroid_lon",0)), float(row.get("centroid_lat",0))], "dem_elev": _fin(row.get("dem_elev")), "spill_crest": _fin(row.get("spill_crest")) or 0.0, "geometry": row.geometry.__geo_interface__ if hasattr(row.geometry, "__geo_interface__") else None}
+            if has_obs:
+                try:
+                    obs = lookup_observations(idx)
+                    item["depth_source"] = obs.get("depth_source", "assumed")
+                    if obs.get("obs_depth_m"):
+                        item["obs_depth_m"] = obs["obs_depth_m"]
+                    if obs.get("bathy_bed_min") is not None:
+                        item["bathy_bed_min"] = obs["bathy_bed_min"]
+                        item["bathy_stem"] = obs.get("bathy_stem")
+                        item["bathy_match_rule"] = obs.get("bathy_match_rule", "spatial")
+                except Exception:
+                    item["depth_source"] = "assumed"
+            out.append(item)
         return out
     except Exception as e:
         raise HTTPException(500, str(e))

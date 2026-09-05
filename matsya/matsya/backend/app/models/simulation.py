@@ -86,6 +86,7 @@ class Parameters(BaseModel):
     cfl: float | None = None
     dt: float | None = None
     theta: float | None = None
+    initialFillPct: float = Field(default=75.0, ge=0.0, le=100.0)
 
 
 class Metadata(BaseModel):

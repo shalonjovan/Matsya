@@ -262,7 +262,22 @@ def _waterbodies_in_bbox(bbox, dem_filled, width, height, max_n: int = 20):
                     except Exception:
                         area_f = 50000.0
                 wid = row.get("id", idx) if hasattr(row, "get") else idx
-                out.append({"id": str(wid), "area_m2": area_f, "crest": float(dem_at + 1.0), "geometry": geom})
+                info = {"id": str(wid), "area_m2": area_f, "crest": float(dem_at + 1.0), "geometry": geom,
+                        "kml_idx": idx, "depth_source": "assumed",
+                        "obs_depth_m": None, "bed_m": None}
+                try:
+                    from app.services.hydro.waterbody_enrich import lookup_observations
+                    obs = lookup_observations(idx)
+                    if obs.get("obs_depth_m"):
+                        info["obs_depth_m"] = float(obs["obs_depth_m"])
+                        info["depth_source"] = obs.get("depth_source", "observed-volume")
+                    if obs.get("bathy_bed_min") is not None:
+                        info["bed_m"] = float(obs["bathy_bed_min"])
+                        if info["depth_source"] == "assumed":
+                            info["depth_source"] = "observed-bathy"
+                except Exception:
+                    pass
+                out.append(info)
             except Exception:
                 continue
         return out
@@ -409,7 +424,45 @@ def _drain_endpoints(bbox, width, height, max_n: int = 30):
     return out
 
 
-def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None):
+def _spill_ring(mask, radius=2):
+    """Shoreline ring: cells within `radius` of mask, excluding mask itself."""
+    import numpy as np
+    m = np.asarray(mask, dtype=bool)
+    if not np.any(m):
+        return None
+    h, w = m.shape
+    dilated = m.copy()
+    for dy in range(-radius, radius + 1):
+        for dx in range(-radius, radius + 1):
+            if dx == 0 and dy == 0:
+                continue
+            shifted = np.roll(np.roll(m, dy, axis=0), dx, axis=1)
+            # kill wraparound rows/cols introduced by roll
+            if dy > 0:
+                shifted[:dy, :] = False
+            elif dy < 0:
+                shifted[dy:, :] = False
+            if dx > 0:
+                shifted[:, :dx] = False
+            elif dx < 0:
+                shifted[:, dx:] = False
+            dilated |= shifted
+    ring = dilated & ~m
+    return ring if np.any(ring) else None
+
+
+def _pond_volume(surface, ring, vol_m3, cell_area):
+    """Spread vol_m3 evenly over ring cells as depth; returns mean added depth."""
+    import numpy as np
+    n = int(np.count_nonzero(ring))
+    if n == 0 or vol_m3 <= 0 or cell_area <= 0:
+        return 0.0
+    d = float(vol_m3) / n / float(cell_area)
+    surface[ring] += d
+    return d
+
+
+def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None, initial_fill_pct=75.0):
     """Generate flood snapshots per bbox+rainfall using DEM low spots.
 
     Args:
@@ -516,6 +569,10 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
     area_m2 = _bbox_area_m2(bbox)
     cell_area = area_m2 / max(1, width * height)
     try:
+        fill_frac = min(1.0, max(0.0, float(initial_fill_pct) / 100.0))
+    except Exception:
+        fill_frac = 0.75
+    try:
         filled = _fill_pits(dem_filled, passes=3)
         ds_flat, order = _d8_order(filled)
         valid_ds = ds_flat >= 0
@@ -530,11 +587,35 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         wb_infos = []
     wb_masks = _rasterize_masks(wb_infos, bbox, width, height) if wb_infos else []
     wb_objs = []
+    wb_rings = []
+    try:
+        for m in (wb_masks or []):
+            wb_rings.append(_spill_ring(m, radius=2) if m is not None else None)
+    except Exception:
+        wb_rings = [None] * len(wb_infos or [])
+    spilled_total = 0.0
+    overtopped = set()
+    wb_observed = 0
     try:
         from app.services.hydro.waterbody import WaterBody
         for info in (wb_infos or []):
             try:
-                wb_objs.append(WaterBody(area_m2=info["area_m2"], crest=info["crest"], stage=info["crest"] - 0.5))
+                # surveyed bed/depth wins over the assumed 2m (stamped per lake)
+                depth = 2.0
+                src = info.get("depth_source", "assumed")
+                bed_m = info.get("bed_m")
+                if bed_m is not None and bed_m < info["crest"]:
+                    depth = min(15.0, max(0.5, info["crest"] - bed_m))
+                    src = "observed-bathy"
+                elif info.get("obs_depth_m"):
+                    depth = min(15.0, max(0.5, float(info["obs_depth_m"])))
+                if src != "assumed":
+                    wb_observed += 1
+                info["depth_source"] = src
+                bed = info["crest"] - depth
+                stage0 = bed + fill_frac * depth
+                wb_objs.append(WaterBody(area_m2=info["area_m2"], crest=info["crest"],
+                                         stage=stage0, depth=depth))
             except Exception:
                 continue
     except Exception:
@@ -637,6 +718,27 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                             pass
                 except Exception:
                     continue
+        # direct rainfall onto lake surfaces goes straight into storage
+        # (rain falls on water too); compensate the surface grid so mass closes
+        direct_rain_vol = 0.0
+        if rain_inc_m and wb_objs:
+            try:
+                for wb in wb_objs:
+                    try:
+                        q_rain = rain_inc_m * float(getattr(wb, "area_m2", 0.0)) / dt if dt else 0.0
+                    except Exception:
+                        q_rain = 0.0
+                    if q_rain > 0:
+                        wb.inflow(q_rain)
+                        direct_rain_vol += q_rain * dt
+            except Exception:
+                pass
+        if direct_rain_vol > 0:
+            try:
+                surface -= direct_rain_vol / area_m2
+                surface = np.maximum(surface, 0.0)
+            except Exception:
+                pass
         # distribute wb inflow evenly, step waterbodies
         if wb_objs and wb_inflow_vol > 0:
             try:
@@ -648,10 +750,20 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                         pass
             except Exception:
                 pass
-        for wb in wb_objs or []:
+        for wi, wb in enumerate(wb_objs or []):
             try:
                 out_q = wb.step(dt)
-                total_outflow_vol += float(out_q) * dt
+                out_vol = float(out_q) * dt
+                if out_vol > 0:
+                    overtopped.add(wi)
+                    ring = wb_rings[wi] if wi < len(wb_rings) else None
+                    if ring is not None:
+                        # pond spill on the shoreline: it stays in-domain (surface
+                        # already measures it), so do NOT count it as outflow
+                        _pond_volume(surface, ring, out_vol, cell_area)
+                        spilled_total += out_vol
+                    else:
+                        total_outflow_vol += out_vol  # no shore: legacy count-as-outflow
             except Exception:
                 continue
         # composite depth: pond surcharge into surface (persists), then lift inside waterbodies for display
@@ -749,8 +861,12 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "bbox": bbox,
         "mass_error": float(mass_error),
         "wbCount": int(len(wb_objs or [])),
+        "wbObserved": int(wb_observed),
         "surchargedDrains": int(surcharged_now),
+        "spillVolumeM3": round(float(spilled_total), 1),
+        "overtoppedLakes": int(len(overtopped)),
         "totalRainMm": total_rain_f,
+        "initialFillPct": round(fill_frac * 100.0, 1),
         "areaKm2": float(area_m2 / 1e6),
     }
 
@@ -827,8 +943,13 @@ def ensure_flood(sim, base_path=None, width=180, height=180):
             rainfall = {"rateMmHr": 50, "durationHr": 1}
     except Exception:
         rainfall = {"rateMmHr": 50, "durationHr": 1}
+    try:
+        _p = getattr(sim, "parameters", None)
+        _fill = _p.get("initialFillPct", 75.0) if isinstance(_p, dict) else getattr(_p, "initialFillPct", 75.0)
+    except Exception:
+        _fill = 75.0
     # generate
-    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=3)  # use 3 for test, 73 for prod
+    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=3, initial_fill_pct=_fill)  # use 3 for test, 73 for prod
     from app.services.simulation_store import store
     base = store.base_path / f"{sim_id}" / "flood"
     base.mkdir(parents=True, exist_ok=True)

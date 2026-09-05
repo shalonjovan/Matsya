@@ -55,11 +55,11 @@ def run_coupled(sim_id: str, hydro: bool = True, steps: int = 12, dt: int = 300,
             if crest_val is None or (isinstance(crest_val,float) and pd.isna(crest_val)):
                 crest_val = 5.0
             crest = float(crest_val)
-            wb_objs[wb_id] = WaterBody(area_m2=area, crest=crest, stage=crest-0.5)  # start below crest
+            wb_objs[wb_id] = WaterBody(area_m2=area, crest=crest, stage=crest-2.0+0.75*2.0)  # 75% initial fill
     else:
         # mock 5 waterbodies
         for i in range(5):
-            wb_objs[str(i)] = WaterBody(area_m2=50000, crest=5.0, stage=4.5)
+            wb_objs[str(i)] = WaterBody(area_m2=50000, crest=5.0, stage=5.0-2.0+0.75*2.0)  # 75% initial fill
 
     # River reaches (2)
     rivers = {}

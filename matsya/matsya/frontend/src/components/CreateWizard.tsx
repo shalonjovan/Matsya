@@ -95,12 +95,14 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const [unit, setUnit] = useState<"rate"|"total">(editSim?.rainfall?.unit === "total" ? "total" : "rate")
   const [points, setPoints] = useState<{time:number,amount:number}[]>(editSim?.rainfall?.points ?? [{time:0,amount:0},{time:3,amount:50}])
   const [cfl, setCfl] = useState(String((editSim as any)?.parameters?.cfl ?? "0.7"))
+  const [initialFill, setInitialFill] = useState(String((editSim as any)?.parameters?.initialFillPct ?? "75"))
   const [search, setSearch] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [areaMode, setAreaMode] = useState<"search"|"rect"|"chennai">("search")
+  const [hydroSummary, setHydroSummary] = useState<any>(null)
   const rectMapRef = useRef<HTMLDivElement>(null)
   const rectMapInstance = useRef<any>(null)
   const rectLayerRef = useRef<any>(null)
@@ -121,6 +123,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
       setMaxRain(String(editSim.rainfall?.maxRain ?? "100"))
       setUnit(editSim.rainfall?.unit === "total" ? "total" : "rate")
       setPoints(editSim.rainfall?.points ?? [{time:0,amount:0},{time:3,amount:50}])
+      setInitialFill(String((editSim as any)?.parameters?.initialFillPct ?? "75"))
     }
   },[editSim])
 
@@ -135,6 +138,15 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [open, onClose])
+
+  // Live drain availability from the backend asset store (micro/macro KML).
+  // Falls back to the sim's attached dataset flag if the fetch fails (offline).
+  useEffect(()=>{
+    if (!open) return
+    let alive = true
+    fetch("/api/hydro/summary").then(r=>r.json()).then(j=>{ if (alive) setHydroSummary(j) }).catch(()=>{})
+    return ()=>{ alive = false }
+  },[open])
 
   // Initialize draw map when rect tab is active — rectangle draw
   useEffect(()=>{
@@ -257,7 +269,10 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const isVariable = rainfallMode === "variable"
   const rainValid = isVariable ? (points.length>=2 && !isNaN(parseFloat(totalTime)) && !isNaN(parseFloat(maxRain))) : rainfallValid
 
-  const drainMissing = !(editSim as any)?.drainage?.uri
+  const drainMissing = hydroSummary ? (hydroSummary.drains ?? 0) === 0 : !(editSim as any)?.drainage?.uri
+  const drainLine = hydroSummary && !drainMissing
+    ? `connected (${hydroSummary.drains} micro/macro → ${hydroSummary.snapped_to_waterbody ?? 0} waterbodies, ${hydroSummary.to_river ?? 0} river, ${hydroSummary.to_sea ?? 0} sea)`
+    : "connected (10,276 SWD lines)"
 
   const applyPreset = (p: typeof PRESETS[0]) => {
     setRate(String(p.rate))
@@ -355,7 +370,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
         name: name.trim(),
         area: { bbox, crs: "EPSG:4326", polygon: polygon || undefined },
         rainfall: isVariable ? { mode:"variable", totalTime: parseFloat(totalTime), maxRain: parseFloat(maxRain), unit, points } : { mode:"constant", rateMmHr: parseFloat(rate), durationHr: parseFloat(duration), constantRate: parseFloat(rate) },
-        parameters: { cfl: parseFloat(cfl) || 0.7 }
+        parameters: { cfl: parseFloat(cfl) || 0.7, initialFillPct: Math.min(100, Math.max(0, parseFloat(initialFill) || 75)) }
       }
       let res: Response
       if (isEdit && editSim) {
@@ -773,7 +788,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                   ) : (
                     <span className="text-emerald-400 flex items-center gap-1 font-medium">
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      connected (10,276 SWD lines)
+                      {drainLine}
                     </span>
                   )}
                 </div>
@@ -814,6 +829,20 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                     className="mt-1.5 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-cyan-500 focus-ring focus:outline-none"
                   />
                   <span className="text-[11px] text-slate-400 mt-1 block">Default: 0.7 (recommended range: 0.5 - 0.9)</span>
+                </label>
+                <label htmlFor="wizard-fill" className="block text-xs text-slate-300">
+                  Lake initial fill (% of capacity)
+                  <span className="flex items-center gap-3">
+                    <input
+                      id="wizard-fill"
+                      type="range" min={0} max={100} step={5}
+                      value={initialFill}
+                      onChange={e => setInitialFill(e.target.value)}
+                      className="flex-1 h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
+                    />
+                    <span className="font-mono text-xs text-cyan-300 w-12 text-right">{initialFill}%</span>
+                  </span>
+                  <span className="text-[11px] text-slate-400 mt-1 block">0% = lakes start empty, 100% = brimful (spills on first rain). Default 75% matches historic behavior.</span>
                 </label>
               </div>
 
