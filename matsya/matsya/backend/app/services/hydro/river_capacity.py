@@ -114,7 +114,7 @@ def build_reaches(bbox, max_n=10):
             from app.services.elevation import sample_dem as _sd
         except Exception:
             _sd = None
-        for i, (_, row) in enumerate(clip.iterrows()):
+        for i, (_lbl, row) in enumerate(clip.iterrows()):
             try:
                 geom = row.geometry
                 if geom is None or geom.is_empty:
@@ -142,7 +142,7 @@ def build_reaches(bbox, max_n=10):
                         pass
                 cap = reach_capacity(length, slope)
                 rid = str(row.get("id", i)) if hasattr(row, "get") else str(i)
-                out.append({"id": rid, "length_m": round(length, 1), "slope": slope,
+                out.append({"id": rid, "_label": str(_lbl), "length_m": round(length, 1), "slope": slope,
                             "width_m": cap["width_m"], "depth_m": cap["depth_m"],
                             "qbank": cap["qbank"], "source": cap["source"], "coords": coords})
             except Exception:

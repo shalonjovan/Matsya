@@ -349,7 +349,13 @@ def _drain_endpoints(bbox, width, height, max_n: int = 30):
         import geopandas as gpd, pandas as pd
         parts = [f for f in frames if f is not None and len(f) > 0]
         if parts:
-            drains = pd.concat(parts, ignore_index=True)
+            tagged = []
+            for _tn, _tf in (("micro", data.get("micro")), ("macro", data.get("macro"))):
+                if _tf is not None and len(_tf) > 0:
+                    _c = _tf.copy()
+                    _c["_src"] = _tn
+                    tagged.append(_c)
+            drains = pd.concat(tagged, ignore_index=True) if tagged else pd.concat(parts, ignore_index=True)
             drains = gpd.GeoDataFrame(drains, crs="EPSG:4326")
             lo_x, hi_x = (minLon, maxLon) if minLon <= maxLon else (maxLon, minLon)
             lo_y, hi_y = (minLat, maxLat) if minLat <= maxLat else (maxLat, minLat)
@@ -359,6 +365,19 @@ def _drain_endpoints(bbox, width, height, max_n: int = 30):
                 clipped = drains.head(max_n)
             if len(clipped) == 0:
                 raise ValueError("no drains in bbox")
+            # snap targets for the same clipped set (micro-then-macro order matches
+            # snap's internal concat, so positional ids align when KML ids are absent)
+            _snap_mapping: dict = {}
+            try:
+                from app.services.hydro.snap import snap_drains_to_waterbodies as _snap_fn
+                _has_src = "_src" in clipped.columns
+                _micro_c = clipped[clipped["_src"] == "micro"].drop(columns=["_src"], errors="ignore") if _has_src else clipped.iloc[0:0]
+                _macro_c = clipped[clipped["_src"] == "macro"].drop(columns=["_src"], errors="ignore") if _has_src else clipped
+                if _has_src and (len(_micro_c) == 0 and len(_macro_c) == 0):
+                    _micro_c, _macro_c = clipped, clipped.iloc[0:0]
+                _snap_mapping = (_snap_fn(_micro_c, _macro_c, data.get("rivers"), data.get("waterbodies")).get("mapping", {})) or {}
+            except Exception:
+                _snap_mapping = {}
             # length + slope via UTM
             try:
                 utm = clipped.to_crs("EPSG:32644")
@@ -407,7 +426,21 @@ def _drain_endpoints(bbox, width, height, max_n: int = 30):
                             slope = 0.001
                     else:
                         slope = 0.001
-                    out.append({"row": rr, "col": cc, "length_m": length, "slope": float(slope)})
+                    # resolve snap target: KML id value first, else clipped position
+                    _tgt = "sea"
+                    try:
+                        _rv = row.get("id", None) if hasattr(row, "get") else None
+                        import pandas as _pdn
+                        if _rv is not None and not (isinstance(_rv, float) and _pdn.isna(_rv)):
+                            _tgt = _snap_mapping.get(_rv, _snap_mapping.get(str(_rv), _tgt))
+                            if _tgt == "sea":
+                                _tgt = _snap_mapping.get(i, _snap_mapping.get(str(i), "sea"))
+                        else:
+                            _tgt = _snap_mapping.get(i, _snap_mapping.get(str(i), "sea"))
+                    except Exception:
+                        _tgt = "sea"
+                    out.append({"row": rr, "col": cc, "length_m": length, "slope": float(slope),
+                                "target": str(_tgt)})
                 except Exception:
                     continue
             if out:
@@ -420,8 +453,79 @@ def _drain_endpoints(bbox, width, height, max_n: int = 30):
     rng = np.random.default_rng(seed)
     out = []
     for _ in range(5):
-        out.append({"row": int(rng.integers(0, height)), "col": int(rng.integers(0, width)), "length_m": 800.0, "slope": 0.001})
+        out.append({"row": int(rng.integers(0, height)), "col": int(rng.integers(0, width)), "length_m": 800.0, "slope": 0.001, "target": "sea"})
     return out
+
+
+def _river_cells(coords_lonlat, bbox, width, height, radius_m=45):
+    """Bool mask of cells within radius_m of a lon/lat polyline. None if unusable."""
+    import math as _m
+    import numpy as np
+    try:
+        minLon, minLat, maxLon, maxLat = bbox
+        pts = list(coords_lonlat or [])
+        if len(pts) < 2:
+            return None
+        lat_c = (minLat + maxLat) / 2.0
+        m_per_deg = 111320.0 * _m.cos(_m.radians(lat_c))
+        dlon = (maxLon - minLon) / max(1, width)
+        dlat = (maxLat - minLat) / max(1, height)
+        samples = []
+        for (x0, y0), (x1, y1) in zip(pts[:-1], pts[1:]):
+            segm = _m.hypot((x1 - x0) * m_per_deg, (y1 - y0) * 110540.0) or 1.0
+            n = max(1, min(200, int(segm / 15.0)))
+            for k in range(n + 1):
+                samples.append((x0 + (x1 - x0) * k / n, y0 + (y1 - y0) * k / n))
+        r_cells = int(max(1, round(radius_m / 30.0)))
+        mask = np.zeros((height, width), dtype=bool)
+        for lon, lat in samples:
+            cc = int((lon - minLon) / dlon) if dlon else 0
+            rr = int((maxLat - lat) / dlat) if dlat else 0
+            r0, r1 = max(0, rr - r_cells), min(height, rr + r_cells + 1)
+            c0, c1 = max(0, cc - r_cells), min(width, cc + r_cells + 1)
+            mask[r0:r1, c0:c1] = True
+        return mask if np.any(mask) else None
+    except Exception:
+        return None
+
+
+def _river_step(reach_obj, reach_info, inflow_vol_m3, dt, surface, mask, cell_area):
+    """Route one reach for one timestep.
+
+    Returns {"sea_vol": float, "spill_vol": float, "overtopped": bool}.
+    Overtop (inflow rate above bankfull) ponds on the reach mask; routed
+    outflow returns to the sea. Pure function of its inputs + reach state.
+    """
+    sea_vol, spill_vol, overtopped = 0.0, 0.0, False
+    try:
+        qin = float(inflow_vol_m3) / dt if dt else 0.0
+    except Exception:
+        qin = 0.0
+    if qin <= 0:
+        return {"sea_vol": 0.0, "spill_vol": 0.0, "overtopped": False}
+    try:
+        qout = reach_obj.route(qin, dt) if reach_obj is not None else 0.0
+    except Exception:
+        qout = 0.0
+    try:
+        sea_vol = float(qout) * dt
+    except Exception:
+        sea_vol = 0.0
+    try:
+        qbank = float((reach_info or {}).get("qbank", 0) or 0)
+    except Exception:
+        qbank = 0.0
+    if qbank > 0 and qin > qbank and mask is not None:
+        try:
+            excess = (qin - qbank) * dt
+            _pond_volume(surface, mask, excess, cell_area)
+            spill_vol = excess
+            overtopped = True
+        except Exception:
+            pass
+    elif qbank > 0 and qin > qbank:
+        overtopped = True
+    return {"sea_vol": sea_vol, "spill_vol": spill_vol, "overtopped": overtopped}
 
 
 def _spill_ring(mask, radius=2):
@@ -677,6 +781,41 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         dt = float(dt)
     except Exception:
         dt = 3600.0
+    # river reaches: capacity + Muskingum state + cell masks (Slice 2)
+    river_reaches, river_objs, river_masks = [], {}, []
+    river_by_key: dict = {}
+    river_spill_total = 0.0
+    overtopped_rivers: list = []
+    river_assumed = 0
+    try:
+        from app.services.hydro.river_capacity import build_reaches, reach_capacity, valley_width
+        from app.services.hydro.river import RiverReach
+        _raw_reaches = build_reaches(list(bbox), max_n=10)
+        for _rr in (_raw_reaches or []):
+            try:
+                _w, _wsrc = valley_width(dem_filled, list(bbox), width, height, _rr.get("coords", []))
+                if _w is not None:
+                    _cap = reach_capacity(_rr["length_m"], _rr["slope"], width_m=_w)
+                    _rr = dict(_rr, width_m=_cap["width_m"], qbank=_cap["qbank"], source="observed-valley")
+                _rr.setdefault("source", "assumed-defaults")
+                if str(_rr.get("source", "")).startswith("assumed"):
+                    river_assumed += 1
+                _K = min(3600.0, max(60.0, float(_rr["length_m"]) / 1.5))
+                _rid = str(_rr.get("id"))
+                river_objs[_rid] = RiverReach(length=_rr["length_m"], slope=_rr["slope"], K=_K, x=0.2)
+                river_by_key[_rid] = len(river_reaches)
+                try:
+                    _lbl = str(_rr.get("_label", _rid))
+                    if _lbl != _rid:
+                        river_by_key[_lbl] = len(river_reaches)
+                except Exception:
+                    pass
+                river_reaches.append(_rr)
+                river_masks.append(_river_cells(_rr.get("coords", []), list(bbox), width, height, radius_m=45))
+            except Exception:
+                continue
+    except Exception:
+        river_reaches, river_objs, river_masks = [], {}, []
     surface = np.zeros((height, width), dtype=np.float64)
     total_outflow_vol = 0.0
     total_sea_vol = 0.0
@@ -760,6 +899,7 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                 except Exception:
                     pass
         wb_inflow_vol = 0.0
+        river_inflow: dict = {}
         if drains:
             per_drain_vol = drain_vol_total / n_drains
             per_drain_q = per_drain_vol / dt if dt else 0.0
@@ -770,7 +910,28 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     # portion that fits goes toward wb (if any), excess surcharges
                     q_fit = min(qin, qcap)
                     q_excess = max(0.0, qin - qcap)
-                    if wb_objs:
+                    try:
+                        _tgt = str((d or {}).get("target", "sea")) if isinstance(d, dict) else "sea"
+                    except Exception:
+                        _tgt = "sea"
+                    if _tgt.startswith("river:") and river_by_key:
+                        # river-mapped: sea-bound share goes to the reach instead of the sea.
+                        # wb-pool share kept EXACTLY as legacy, so lake behavior cannot regress.
+                        _rkey = _tgt.split(":", 1)[1]
+                        _rpos = river_by_key.get(_rkey, river_by_key.get(str(_rkey)))
+                        if _rpos is not None:
+                            river_inflow[_rpos] = river_inflow.get(_rpos, 0.0) + qin * dt * 0.4
+                        else:
+                            total_sea_vol += qin * dt * 0.4
+                        if wb_objs:
+                            wb_inflow_vol += q_fit * dt * 0.6
+                        else:
+                            total_sea_vol += q_fit * dt * 0.6
+                        if wb_objs:
+                            wb_inflow_vol += q_fit * dt * 0.6
+                        else:
+                            total_sea_vol += q_fit * dt * 0.6 + qin * dt * 0.0
+                    elif wb_objs:
                         wb_inflow_vol += q_fit * dt * 0.6
                         total_sea_vol += (qin * dt * 0.4 + q_fit * dt * 0.0)
                     else:
@@ -836,6 +997,29 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                         total_outflow_vol += out_vol  # no shore: legacy count-as-outflow
             except Exception:
                 continue
+        # river routing: Muskingum per reach, overtop ponds on river cells
+        try:
+            for _ri, _rr in enumerate(river_reaches):
+                try:
+                    _invol = float(river_inflow.get(_ri, 0.0))
+                except Exception:
+                    _invol = 0.0
+                if _invol <= 0:
+                    continue
+                _res = _river_step(river_objs.get(str(_rr.get("id"))), _rr, _invol, dt,
+                                   surface, river_masks[_ri] if _ri < len(river_masks) else None,
+                                   cell_area)
+                try:
+                    total_sea_vol += float(_res.get("sea_vol", 0.0))
+                    river_spill_total += float(_res.get("spill_vol", 0.0))
+                except Exception:
+                    pass
+                if _res.get("overtopped"):
+                    _rid_s = str(_rr.get("id"))
+                    if _rid_s not in overtopped_rivers:
+                        overtopped_rivers.append(_rid_s)
+        except Exception:
+            pass
         # composite depth: pond surcharge into surface (persists), then lift inside waterbodies for display
         try:
             surface += surcharge_grid
@@ -938,6 +1122,10 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "swmmFloodVolumeM3": round(float(sum(v.get("volume_m3", 0) for v in (swmm_info.get("node_flood") or {}).values())), 1),
         "spillVolumeM3": round(float(spilled_total), 1),
         "overtoppedLakes": int(len(overtopped)),
+        "riverSpillVolumeM3": round(float(river_spill_total), 1),
+        "overtoppedRivers": list(overtopped_rivers)[:20],
+        "riverAssumed": int(river_assumed),
+        "riverCount": int(len(river_reaches)),
         "totalRainMm": total_rain_f,
         "initialFillPct": round(fill_frac * 100.0, 1),
         "areaKm2": float(area_m2 / 1e6),
