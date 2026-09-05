@@ -134,8 +134,13 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                 # Clamp steps
                 steps = max(1, min(steps, 73))
 
-                # Generate snapshots (deterministic per bbox+rainfall)
-                snaps, _, _ = generate_flood(bbox, rainfall, width=width, height=height, steps=steps)
+                # Generate snapshots (deterministic per bbox+rainfall+fill)
+                try:
+                    _p = getattr(sim, "parameters", None)
+                    _fill = _p.get("initialFillPct", 75.0) if isinstance(_p, dict) else getattr(_p, "initialFillPct", 75.0)
+                except Exception:
+                    _fill = 75.0
+                snaps, _, _ = generate_flood(bbox, rainfall, width=width, height=height, steps=steps, initial_fill_pct=_fill)
 
                 # Map time to snapshot index (time is snapshot index per spec)
                 try:
@@ -191,6 +196,9 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                 "wbCount": fstats.get("wbCount"),
                 "surchargedDrains": fstats.get("surchargedDrains"),
                 "wbObserved": fstats.get("wbObserved", 0),
+                "spillVolumeM3": fstats.get("spillVolumeM3", 0),
+                "overtoppedLakes": fstats.get("overtoppedLakes", 0),
+                "initialFillPct": fstats.get("initialFillPct", 75.0),
                 "drainSurcharge": bool((fstats.get("surchargedDrains") or 0) > 0),
                 "totalRainMm": fstats.get("totalRainMm"),
             }

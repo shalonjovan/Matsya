@@ -282,6 +282,13 @@
             "null"
           ]
         },
+        "initialFillPct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "default": 75.0,
+          "description": "Lake initial storage as % of depth-to-crest at sim start"
+        },
         "theta": {
           "type": [
             "number",

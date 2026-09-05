@@ -462,7 +462,7 @@ def _pond_volume(surface, ring, vol_m3, cell_area):
     return d
 
 
-def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None):
+def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None, initial_fill_pct=75.0):
     """Generate flood snapshots per bbox+rainfall using DEM low spots.
 
     Args:
@@ -569,6 +569,10 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
     area_m2 = _bbox_area_m2(bbox)
     cell_area = area_m2 / max(1, width * height)
     try:
+        fill_frac = min(1.0, max(0.0, float(initial_fill_pct) / 100.0))
+    except Exception:
+        fill_frac = 0.75
+    try:
         filled = _fill_pits(dem_filled, passes=3)
         ds_flat, order = _d8_order(filled)
         valid_ds = ds_flat >= 0
@@ -608,8 +612,10 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                 if src != "assumed":
                     wb_observed += 1
                 info["depth_source"] = src
+                bed = info["crest"] - depth
+                stage0 = bed + fill_frac * depth
                 wb_objs.append(WaterBody(area_m2=info["area_m2"], crest=info["crest"],
-                                         stage=info["crest"] - 0.5, depth=depth))
+                                         stage=stage0, depth=depth))
             except Exception:
                 continue
     except Exception:
@@ -860,6 +866,7 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "spillVolumeM3": round(float(spilled_total), 1),
         "overtoppedLakes": int(len(overtopped)),
         "totalRainMm": total_rain_f,
+        "initialFillPct": round(fill_frac * 100.0, 1),
         "areaKm2": float(area_m2 / 1e6),
     }
 
@@ -936,8 +943,13 @@ def ensure_flood(sim, base_path=None, width=180, height=180):
             rainfall = {"rateMmHr": 50, "durationHr": 1}
     except Exception:
         rainfall = {"rateMmHr": 50, "durationHr": 1}
+    try:
+        _p = getattr(sim, "parameters", None)
+        _fill = _p.get("initialFillPct", 75.0) if isinstance(_p, dict) else getattr(_p, "initialFillPct", 75.0)
+    except Exception:
+        _fill = 75.0
     # generate
-    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=3)  # use 3 for test, 73 for prod
+    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=3, initial_fill_pct=_fill)  # use 3 for test, 73 for prod
     from app.services.simulation_store import store
     base = store.base_path / f"{sim_id}" / "flood"
     base.mkdir(parents=True, exist_ok=True)

@@ -42,3 +42,24 @@ def test_heavy_rain_spills_and_stays_balanced():
     _, _, light = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 20, "durationHr": 1},
                                  width=20, height=20, steps=3)
     assert light["spillVolumeM3"] <= stats["spillVolumeM3"]
+
+def test_initial_fill_zero_starts_empty():
+    from app.services.hydro.waterbody import WaterBody
+    wb = WaterBody(area_m2=10000, crest=5.0, stage=5.0 - 2.0 + 0.0 * 2.0)  # 0% of 2m
+    assert wb.volume == 0.0
+
+def test_initial_fill_default_matches_legacy():
+    # 75% of a 2m bucket == crest-0.5, the historic hardcode
+    from app.services.hydro.waterbody import WaterBody
+    wb = WaterBody(area_m2=10000, crest=5.0, stage=(5.0 - 2.0) + 0.75 * 2.0)
+    assert abs(wb.stage - 4.5) < 1e-9
+
+def test_initial_fill_hundred_spills_first():
+    from app.services.flood import generate_flood
+    _, _, s100 = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 5, "durationHr": 1},
+                                width=10, height=10, steps=2, initial_fill_pct=100)
+    _, _, s0 = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 5, "durationHr": 1},
+                              width=10, height=10, steps=2, initial_fill_pct=0)
+    assert s100["initialFillPct"] == 100 and s0["initialFillPct"] == 0
+    assert s100["spillVolumeM3"] >= s0["spillVolumeM3"]
+    assert s100["mass_error"] < 0.25 and s0["mass_error"] < 0.25
