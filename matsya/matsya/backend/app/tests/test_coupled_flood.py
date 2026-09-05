@@ -37,4 +37,8 @@ def test_heavy_rain_spills_and_stays_balanced():
     _, _, stats = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 200, "durationHr": 3},
                                  width=20, height=20, steps=3)
     assert "spillVolumeM3" in stats and "overtoppedLakes" in stats
-    assert stats["spillVolumeM3"] >= 0.0 and stats["mass_error"] < 0.25
+    assert stats["spillVolumeM3"] > 0.0 and stats["overtoppedLakes"] > 0
+    assert stats["mass_error"] < 0.25
+    _, _, light = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 20, "durationHr": 1},
+                                 width=20, height=20, steps=3)
+    assert light["spillVolumeM3"] <= stats["spillVolumeM3"]
