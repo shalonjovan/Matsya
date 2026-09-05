@@ -21,6 +21,99 @@ MATCH_MAX_AREA_RATIO = 5.0
 
 SOURCE_ZENODO = "WRR-Zenodo-SIWB"
 
+# Tamil spelling variants observed across KML vs bathy filenames.
+# Applied AFTER lowercasing/stripping, BEFORE comparison.
+NAME_ALIASES = {
+    "madavaram": "madhavaram",
+    "kaveripak": "kaveripakkam",
+    "pulal": "redhills",
+    "puzhal": "redhills",
+    "kuvam": "cooum",
+    "korttalaiyar": "kortiaaaaalaiyar",
+}
+
+_NAME_STRIP = ("tank", "tanks", "eri", "lake", "lakes", "ponds", "reservoir",
+               "thangal", "komban", "chitteri", "periya", "big", "large", "pudu")
+
+
+def normalize_lake_name(name):
+    """Lowercase alphanumeric tokens minus generic suffixes, aliases resolved."""
+    import re
+    import unicodedata
+    if not name:
+        return ""
+    s = unicodedata.normalize("NFKD", str(name).lower())
+    s = "".join(c if (c.isalnum() or c == " ") else " " for c in s)
+    toks = [t for t in s.split() if t and t not in _NAME_STRIP]
+    toks = [NAME_ALIASES.get(t, t) for t in toks]
+    return " ".join(toks)
+
+
+def match_bathy_by_name(kml_gdf, index=None):
+    """Name-anchored bathy matching with REQUIRED spatial confirmation.
+
+    Normalizes KML DRNP_NAME/description vs bathy raster stems; a name hit only
+    counts when the KML centroid falls inside the raster footprint (kills false
+    friends like Edaiyarpakkam vs Pakkam). Disambiguates multi-candidate names
+    (pakkam_big vs pakkam_chitteri) the same way; ambiguous names are dropped.
+    Returns dict kml_index -> {bathy_stem, bed_min, bed_mean, match_score: 1.0,
+    match_rule: "name-spatial"}.
+    """
+    out = {}
+    if kml_gdf is None or len(kml_gdf) == 0:
+        return out
+    if index is None:
+        index = bathy_index()
+    if not index:
+        return out
+    # raster stem -> normalized token set
+    stems = {}
+    for stem in index:
+        base = stem[:-4] if stem.lower().endswith("_idw") else stem
+        stems[stem] = normalize_lake_name(base.replace("_", " "))
+    try:
+        k = kml_gdf.to_crs("EPSG:32644")
+    except Exception:
+        return out
+    from shapely.geometry import box
+    for idx, krow in k.iterrows():
+        try:
+            nm = None
+            for col in ("DRNP_NAME", "drnp_name", "name", "NAME", "DESCR", "descr"):
+                try:
+                    v = krow.get(col) if hasattr(krow, "get") else None
+                except Exception:
+                    v = None
+                if v and str(v).strip():
+                    nm = str(v).strip()
+                    break
+            if not nm:
+                continue
+            norm = normalize_lake_name(nm)
+            if not norm:
+                continue
+            geom = krow.geometry
+            if geom is None or geom.is_empty:
+                continue
+            c = geom.centroid
+            hits = []
+            for stem, snorm in stems.items():
+                if not snorm:
+                    continue
+                if norm == snorm or norm in snorm.split() or snorm in norm.split():
+                    info = index[stem]
+                    bl, bb, br, bt = box(*info["bounds_32644"]).bounds
+                    if bl < c.x < br and bb < c.y < bt:
+                        hits.append(stem)
+            if len(hits) == 1:
+                info = index[hits[0]]
+                out[idx] = {"bathy_stem": hits[0], "bed_min": info["bed_min"],
+                            "bed_mean": info["bed_mean"], "match_score": 1.0,
+                            "match_rule": "name-spatial"}
+        except Exception:
+            continue
+    return out
+
 
 def _enrich_dir():
     here = pathlib.Path(__file__).resolve()
@@ -287,8 +380,13 @@ def rebuild_match_cache(kml_gdf=None, enrich_dir=None):
             return {"lake": {}, "bathy": {}}
     lake = match_lakes(kml_gdf)
     bathy = match_bathy(kml_gdf)
+    try:
+        bathy_name = match_bathy_by_name(kml_gdf)
+    except Exception:
+        bathy_name = {}
     cache = {"lake": {str(k): v for k, v in lake.items()},
-             "bathy": {str(k): v for k, v in bathy.items()}}
+             "bathy": {str(k): v for k, v in bathy.items()},
+             "bathy_name": {str(k): v for k, v in bathy_name.items()}}
     try:
         _cache_path(enrich_dir).write_text(json.dumps(cache))
     except Exception:
@@ -302,8 +400,9 @@ def get_match_cache(enrich_dir=None):
     if p.exists():
         try:
             c = json.loads(p.read_text())
-            if isinstance(c, dict) and ("lake" in c or "bathy" in c):
-                return {"lake": c.get("lake", {}), "bathy": c.get("bathy", {})}
+            if isinstance(c, dict) and "bathy_name" in c and ("lake" in c or "bathy" in c):
+                return {"lake": c.get("lake", {}), "bathy": c.get("bathy", {}),
+                        "bathy_name": c.get("bathy_name", {})}
         except Exception:
             pass
     return rebuild_match_cache(enrich_dir=enrich_dir)
@@ -316,7 +415,7 @@ def lookup_observations(kml_idx, cache=None, enrich_dir=None):
         key = str(kml_idx)
         lake = (c.get("lake") or {}).get(key, {})
         bathy = (c.get("bathy") or {}).get(key, {})
-        merged = {"depth_source": "assumed"}
+        merged: dict = {"depth_source": "assumed"}
         if lake.get("obs_depth_m"):
             merged.update({"zip_id": lake.get("zip_id"), "zip_area_ha": lake.get("area_ha"),
                            "obs_volume_mcm": lake.get("vol_mcm"), "obs_vol_lb": lake.get("vol_lb"),
@@ -326,7 +425,20 @@ def lookup_observations(kml_idx, cache=None, enrich_dir=None):
         if bathy.get("bed_min") is not None:
             merged.update({"bathy_stem": bathy.get("bathy_stem"), "bathy_bed_min": bathy.get("bed_min"),
                            "bathy_bed_mean": bathy.get("bed_mean"),
-                           "bathy_match_score": bathy.get("match_score")})
+                           "bathy_match_score": bathy.get("match_score"),
+                           "bathy_match_rule": bathy.get("match_rule", "spatial")})
+            if merged.get("depth_source") == "assumed":
+                merged["depth_source"] = "observed-bathy"
+        try:
+            named = (c.get("bathy_name") or {}).get(key, {})
+        except Exception:
+            named = {}
+        if named.get("bed_min") is not None:
+            # name-spatial is the stronger signal: wins over spatial-only
+            merged.update({"bathy_stem": named.get("bathy_stem"), "bathy_bed_min": named.get("bed_min"),
+                           "bathy_bed_mean": named.get("bed_mean"),
+                           "bathy_match_score": named.get("match_score", 1.0),
+                           "bathy_match_rule": "name-spatial"})
             if merged.get("depth_source") == "assumed":
                 merged["depth_source"] = "observed-bathy"
         return merged
@@ -340,7 +452,8 @@ def attach_observations(kml_gdf, enrich_dir=None):
     gdf = kml_gdf.copy()
     for col in ("zip_id", "zip_area_ha", "obs_volume_mcm", "obs_vol_lb", "obs_vol_ub",
                 "obs_depth_m", "depth_source", "lake_match_score",
-                "bathy_stem", "bathy_bed_min", "bathy_bed_mean", "bathy_match_score"):
+                "bathy_stem", "bathy_bed_min", "bathy_bed_mean", "bathy_match_score",
+                "bathy_match_rule"):
         if col not in gdf.columns:
             gdf[col] = None
     gdf["depth_source"] = "assumed"
@@ -348,8 +461,9 @@ def attach_observations(kml_gdf, enrich_dir=None):
         cache = get_match_cache(enrich_dir)
         lake_m = cache.get("lake", {})
         bathy_m = cache.get("bathy", {})
+        name_m = cache.get("bathy_name", {})
     except Exception:
-        lake_m, bathy_m = {}, {}
+        lake_m, bathy_m, name_m = {}, {}, {}
     for idx in gdf.index:
         try:
             m = lake_m.get(str(idx))
@@ -369,6 +483,16 @@ def attach_observations(kml_gdf, enrich_dir=None):
                 gdf.at[idx, "bathy_bed_min"] = b.get("bed_min")
                 gdf.at[idx, "bathy_bed_mean"] = b.get("bed_mean")
                 gdf.at[idx, "bathy_match_score"] = b.get("match_score")
+                gdf.at[idx, "bathy_match_rule"] = b.get("match_rule", "spatial")
+                if gdf.at[idx, "depth_source"] == "assumed":
+                    gdf.at[idx, "depth_source"] = "observed-bathy"
+            n = name_m.get(str(idx))
+            if n:
+                gdf.at[idx, "bathy_stem"] = n.get("bathy_stem")
+                gdf.at[idx, "bathy_bed_min"] = n.get("bed_min")
+                gdf.at[idx, "bathy_bed_mean"] = n.get("bed_mean")
+                gdf.at[idx, "bathy_match_score"] = n.get("match_score", 1.0)
+                gdf.at[idx, "bathy_match_rule"] = "name-spatial"
                 if gdf.at[idx, "depth_source"] == "assumed":
                     gdf.at[idx, "depth_source"] = "observed-bathy"
         except Exception:
@@ -396,6 +520,17 @@ if __name__ == "__main__":
     print("bathy rasters indexed:", len(bi))
     bm = match_bathy(wb, bi) if wb is not None else {}
     print("bathy matches:", len(bm))
+    nm = match_bathy_by_name(wb, bi) if wb is not None else {}
+    print("name-spatial matches:", len(nm))
+    for idx, v in sorted(nm.items(), key=lambda kv: str(kv[0])):
+        nm_kml = "?"
+        try:
+            if wb is not None:
+                row = wb.loc[idx]
+                nm_kml = row.get("DRNP_NAME", "?") if hasattr(row, "get") else "?"
+        except Exception:
+            pass
+        print("  kml %s %-22s <- %s" % (idx, str(nm_kml)[:22], v["bathy_stem"]))
     # big-square bbox overlap (lon/lat -> UTM, no guessing)
     try:
         if wb is None:

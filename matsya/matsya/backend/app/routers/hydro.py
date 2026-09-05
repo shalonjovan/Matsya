@@ -119,6 +119,7 @@ def waterbodies(limit: int = 20):
                     if obs.get("bathy_bed_min") is not None:
                         item["bathy_bed_min"] = obs["bathy_bed_min"]
                         item["bathy_stem"] = obs.get("bathy_stem")
+                        item["bathy_match_rule"] = obs.get("bathy_match_rule", "spatial")
                 except Exception:
                     item["depth_source"] = "assumed"
             out.append(item)
