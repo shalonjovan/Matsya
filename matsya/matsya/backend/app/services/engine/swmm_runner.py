@@ -131,6 +131,57 @@ def get_run(run_id: str):
     return _runs.get(run_id)
 
 
+_SWMM_CACHE_TTL = 86400
+
+
+def cached_node_floods(bbox, rainfall, limit=40):
+    """Node floods for a bbox+rainfall via SWMM, cached on disk.
+
+    Returns {"coupled": bool, "node_flood": {node: {volume_m3, peak_rate}},
+    "drains": [rows with x0/y0/x1/y1]}. drains list is always fresh
+    (cheap); only the solver run is cached.
+    """
+    import hashlib
+    import json as _json
+    import time as _t
+    try:
+        key_src = _json.dumps({"bbox": list(bbox), "rain": rainfall, "limit": limit,
+                               "geom": "v1"}, sort_keys=True, default=str)
+    except Exception:
+        key_src = repr((bbox, str(rainfall), limit))
+    h = hashlib.md5(key_src.encode()).hexdigest()[:16]
+    cdir = pathlib.Path(__file__).parents[2] / "data" / "swmm_cache"
+    cfile = cdir / (h + ".json")
+    try:
+        drains = drains_for_bbox(list(bbox), limit=limit)
+    except Exception:
+        drains = []
+    if not drains:
+        return {"coupled": False, "node_flood": {}, "drains": []}
+    try:
+        if cfile.exists() and (_t.time() - cfile.stat().st_mtime) < _SWMM_CACHE_TTL:
+            c = _json.loads(cfile.read_text())
+            if isinstance(c, dict) and "node_flood" in c:
+                return {"coupled": bool(c.get("coupled")), "node_flood": c["node_flood"],
+                        "drains": drains}
+    except Exception:
+        pass
+    try:
+        tmp = cdir / ("run_" + h)
+        res = run_network_sync(drains, rainfall or {}, str(tmp))
+        out = {"coupled": bool(res.get("solved")),
+               "node_flood": res.get("node_flood", {})}
+        try:
+            cdir.mkdir(parents=True, exist_ok=True)
+            cfile.write_text(_json.dumps(out))
+        except Exception:
+            pass
+        out["drains"] = drains
+        return out
+    except Exception:
+        return {"coupled": False, "node_flood": {}, "drains": drains}
+
+
 def drains_for_bbox(bbox, limit=40):
     """Clip micro+macro drains to bbox; lengths from UTM geometry, inverts from DEM."""
     from app.services.hydro.asset_loader import load_assets

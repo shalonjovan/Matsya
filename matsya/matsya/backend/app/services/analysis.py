@@ -198,6 +198,8 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                 "wbObserved": fstats.get("wbObserved", 0),
                 "spillVolumeM3": fstats.get("spillVolumeM3", 0),
                 "overtoppedLakes": fstats.get("overtoppedLakes", 0),
+                "swmmCoupled": fstats.get("swmmCoupled", False),
+                "swmmFloodVolumeM3": fstats.get("swmmFloodVolumeM3", 0),
                 "initialFillPct": fstats.get("initialFillPct", 75.0),
                 "drainSurcharge": bool((fstats.get("surchargedDrains") or 0) > 0),
                 "totalRainMm": fstats.get("totalRainMm"),

@@ -462,6 +462,12 @@ def _pond_volume(surface, ring, vol_m3, cell_area):
     return d
 
 
+def _swmm_node_floods(bbox, rainfall):
+    """Computed node floods via cached SWMM. Raises on solver failure (caller falls back)."""
+    from app.services.engine.swmm_runner import cached_node_floods
+    return cached_node_floods(list(bbox), rainfall or {})
+
+
 def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None, initial_fill_pct=75.0):
     """Generate flood snapshots per bbox+rainfall using DEM low spots.
 
@@ -638,6 +644,34 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         except Exception:
             drain_qcaps.append(0.6)
 
+    # computed SWMM overflow (Slice 2); Manning guess below is fallback only
+    try:
+        minLon, minLat, maxLon, maxLat = bbox
+    except Exception:
+        minLon, minLat, maxLon, maxLat = (80.15, 13.08, 80.20, 13.13)
+    dlon = (maxLon - minLon) / max(1, width)
+    dlat = (maxLat - minLat) / max(1, height)
+    swmm_info: dict = {"coupled": False, "node_flood": {}, "drains": []}
+    try:
+        swmm_info = _swmm_node_floods(bbox, rainfall)
+    except Exception:
+        swmm_info = {"coupled": False, "node_flood": {}, "drains": []}
+    swmm_coupled = bool(swmm_info.get("coupled"))
+    # node id -> grid cell from SWMM drain endpoint coords
+    swmm_cells: dict = {}
+    try:
+        for _di, _dr in enumerate(swmm_info.get("drains", []) or []):
+            for _tag, _lk in (("J%d_UP" % _di, ("x0", "y0")), ("J%d_DN" % _di, ("x1", "y1"))):
+                try:
+                    _lon, _lat = float(_dr[_lk[0]]), float(_dr[_lk[1]])
+                    _cc = int((_lon - minLon) / dlon) if dlon else 0
+                    _rr = int((maxLat - _lat) / dlat) if dlat else 0
+                    swmm_cells[_tag] = (max(0, min(height - 1, _rr)), max(0, min(width - 1, _cc)))
+                except Exception:
+                    continue
+    except Exception:
+        swmm_cells = {}
+
     dt = duration * 3600 / steps if steps > 0 else 3600
     try:
         dt = float(dt)
@@ -678,17 +712,53 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         step_rain_vol = rain_inc_m * area_m2
         n_drains = max(1, len(drains or []))
         drain_vol_total = step_rain_vol * 0.3
-        # subtract drained water uniformly from surface (infiltration to network)
-        if drain_vol_total > 0:
+        if not swmm_coupled:
+            # Manning-guess take (fallback path only)
+            if drain_vol_total > 0:
+                try:
+                    take = drain_vol_total / area_m2  # m depth
+                    # don't take more than available on average
+                    take = min(take, float(np.mean(surface)) * 0.9) if float(np.mean(surface)) > 0 else 0.0
+                    if take > 0:
+                        surface -= take
+                        surface = np.maximum(surface, 0.0)
+                except Exception:
+                    pass
+        else:
+            # computed path: remove SWMM-routed volume uniformly, pond node floods locally
             try:
-                take = drain_vol_total / area_m2  # m depth
-                # don't take more than available on average
-                take = min(take, float(np.mean(surface)) * 0.9) if float(np.mean(surface)) > 0 else 0.0
-                if take > 0:
-                    surface -= take
-                    surface = np.maximum(surface, 0.0)
+                swmm_nodes = swmm_info.get("node_flood", {}) or {}
+                swmm_step_total = float(sum(v.get("volume_m3", 0) for v in swmm_nodes.values())) / max(1, steps)
             except Exception:
-                pass
+                swmm_step_total = 0.0
+                swmm_nodes = {}
+            if swmm_step_total > 0:
+                try:
+                    take = swmm_step_total / area_m2
+                    take = min(take, float(np.mean(surface)) * 0.9) if float(np.mean(surface)) > 0 else 0.0
+                    if take > 0:
+                        surface -= take
+                        surface = np.maximum(surface, 0.0)
+                except Exception:
+                    pass
+                try:
+                    for nid, ninfo in swmm_nodes.items():
+                        try:
+                            vol = float(ninfo.get("volume_m3", 0)) / max(1, steps)
+                            if vol <= 0:
+                                continue
+                            cell = swmm_cells.get(nid)
+                            if cell is None:
+                                continue
+                            rr, cc = cell
+                            r0, r1 = max(0, rr - 1), min(height, rr + 2)
+                            c0, c1 = max(0, cc - 1), min(width, cc + 2)
+                            ncell = max(1, (r1 - r0) * (c1 - c0))
+                            surcharge_grid[r0:r1, c0:c1] += (vol / ncell) / cell_area
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
         wb_inflow_vol = 0.0
         if drains:
             per_drain_vol = drain_vol_total / n_drains
@@ -705,7 +775,7 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                         total_sea_vol += (qin * dt * 0.4 + q_fit * dt * 0.0)
                     else:
                         total_sea_vol += qin * dt
-                    if q_excess > 0:
+                    if q_excess > 0 and not swmm_coupled:
                         try:
                             rr = int(d["row"]); cc = int(d["col"])
                             vol = q_excess * dt
@@ -863,6 +933,9 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "wbCount": int(len(wb_objs or [])),
         "wbObserved": int(wb_observed),
         "surchargedDrains": int(surcharged_now),
+        "swmmCoupled": bool(swmm_coupled),
+        "swmmFloodedNodes": int(len((swmm_info.get("node_flood") or {}))),
+        "swmmFloodVolumeM3": round(float(sum(v.get("volume_m3", 0) for v in (swmm_info.get("node_flood") or {}).values())), 1),
         "spillVolumeM3": round(float(spilled_total), 1),
         "overtoppedLakes": int(len(overtopped)),
         "totalRainMm": total_rain_f,

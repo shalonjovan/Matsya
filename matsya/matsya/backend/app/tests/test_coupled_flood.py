@@ -63,3 +63,22 @@ def test_initial_fill_hundred_spills_first():
     assert s100["initialFillPct"] == 100 and s0["initialFillPct"] == 0
     assert s100["spillVolumeM3"] >= s0["spillVolumeM3"]
     assert s100["mass_error"] < 0.25 and s0["mass_error"] < 0.25
+
+def test_swmm_coupling_keys_and_mass():
+    from app.services.flood import generate_flood
+    _, _, s = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 100, "durationHr": 2},
+                             width=20, height=20, steps=3)
+    assert "swmmCoupled" in s and "swmmFloodVolumeM3" in s
+    assert s["mass_error"] < 0.25
+
+def test_swmm_fallback_when_solver_missing():
+    import app.services.flood as F
+    real = F._swmm_node_floods if hasattr(F, "_swmm_node_floods") else None
+    assert real is not None
+    F._swmm_node_floods = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no solver"))
+    try:
+        _, _, s = F.generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 100, "durationHr": 2},
+                                   width=20, height=20, steps=3)
+        assert s["swmmCoupled"] is False and s["mass_error"] < 0.25
+    finally:
+        F._swmm_node_floods = real
