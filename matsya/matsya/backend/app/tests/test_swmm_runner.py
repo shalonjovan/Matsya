@@ -59,3 +59,30 @@ def test_bbox_drains_feed_runner():
     assert 1 <= len(rows) <= 10
     r0 = rows[0]
     assert r0["length_m"] > 0 and r0["z0"] >= r0["z1"]
+
+def test_sync_returns_per_node_floods():
+    from app.services.engine.swmm_runner import run_network_sync
+    import tempfile
+    drains = [
+        {"id": "D1", "length_m": 100.0, "slope": 0.01, "z0": 10.0, "z1": 9.0,
+         "x0": 80.16, "y0": 13.10, "x1": 80.161, "y1": 13.101},
+        {"id": "D2", "length_m": 100.0, "slope": 0.01, "z0": 10.0, "z1": 9.0,
+         "x0": 80.162, "y0": 13.102, "x1": 80.163, "y1": 13.103},
+    ]
+    import app.services.engine.swmm_inp as inp
+    old_w, old_d = inp.WIDTH_M, inp.DEPTH_M
+    inp.WIDTH_M, inp.DEPTH_M = 0.1, 0.1
+    try:
+        r = run_network_sync(drains, {"rateMmHr": 100, "durationHr": 2}, tempfile.mkdtemp())
+    finally:
+        inp.WIDTH_M, inp.DEPTH_M = old_w, old_d
+    assert r["solved"] is True
+    assert "J0_UP" in r["node_flood"] and r["node_flood"]["J0_UP"]["volume_m3"] > 0
+
+def test_sync_clean_network_no_floods():
+    from app.services.engine.swmm_runner import run_network_sync
+    import tempfile
+    drains = [{"id": "D1", "length_m": 100.0, "slope": 0.01, "z0": 10.0, "z1": 9.0,
+               "x0": 80.16, "y0": 13.10, "x1": 80.161, "y1": 13.101}]
+    r = run_network_sync(drains, {"rateMmHr": 50, "durationHr": 1}, tempfile.mkdtemp())
+    assert r["solved"] is True and r["node_flood"] == {}

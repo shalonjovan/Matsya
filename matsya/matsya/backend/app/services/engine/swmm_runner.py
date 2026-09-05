@@ -33,6 +33,55 @@ def _parse_flooding(rpt_path):
     return count, vol
 
 
+def run_network_sync(drains, rainfall, workdir):
+    """Run one SWMM network synchronously. Returns solved + per-node floods."""
+    import pathlib
+    from pyswmm import Simulation, Links, Nodes
+    from app.services.engine import swmm_inp
+    outdir = pathlib.Path(workdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    inp = swmm_inp.build_inp(drains, rainfall, [80.15, 13.08, 80.20, 13.13],
+                             str(outdir / "network.inp"))
+    link_ids, node_ids = [], []
+    for i in range(len(drains)):
+        link_ids += ["C%d" % i, "CX%d" % i]
+        node_ids += ["J%d_UP" % i, "J%d_DN" % i]
+    node_vol: dict = {}
+    node_peak: dict = {}
+    link_peak: dict = {}
+    step_times = []
+    with Simulation(inp) as sim_obj:
+        links, nodes = Links(sim_obj), Nodes(sim_obj)
+        for step in sim_obj:
+            try:
+                step_times.append(sim_obj._model.getCurrentSimulationTime() if hasattr(sim_obj._model, "getCurrentSimulationTime") else len(step_times) * 300)
+            except Exception:
+                step_times.append(len(step_times) * 300)
+            for lid in link_ids:
+                try:
+                    link_peak[lid] = max(link_peak.get(lid, 0.0), abs(links[lid].flow))
+                except Exception:
+                    pass
+            for nid in node_ids:
+                try:
+                    q = nodes[nid].flooding or 0
+                except Exception:
+                    q = 0
+                if q > 0:
+                    node_peak[nid] = max(node_peak.get(nid, 0.0), q)
+                    node_vol[nid] = node_vol.get(nid, 0.0) + q * 30.0  # routing step 30s
+    rpt = inp.replace(".inp", ".rpt")
+    try:
+        solved = "Analysis ended" in pathlib.Path(rpt).read_text(errors="ignore")
+    except Exception:
+        solved = False
+    floods = {nid: {"volume_m3": round(node_vol.get(nid, 0.0), 1),
+                    "peak_rate": round(node_peak.get(nid, 0.0), 4)}
+              for nid in node_vol if node_vol.get(nid, 0.0) > 0}
+    return {"solved": bool(solved), "node_flood": floods, "link_peak": link_peak,
+            "times": step_times, "rpt": rpt, "inp": inp}
+
+
 def run_simulation(sim_id: str, sim: Any) -> str:
     run_id = str(uuid.uuid4())
     _runs[run_id] = {"runId": run_id, "simId": sim_id, "engine": "swmm",
@@ -54,40 +103,15 @@ def run_simulation(sim_id: str, sim: Any) -> str:
                                       "error": audit["mode"] + ": " + "; ".join(audit["missing"])})
                 return
             outdir = pathlib.Path(__file__).parents[2] / "data" / "runs" / run_id
-            outdir.mkdir(parents=True, exist_ok=True)
-            inp = swmm_inp.build_inp(drains, rainfall,
-                                     (payload.get("area") or {}).get("bbox", [80.15, 13.08, 80.20, 13.13]),
-                                     str(outdir / "network.inp"))
-            _runs[run_id].update({"inp": inp, "progress": 50})
-            from pyswmm import Simulation, Links, Nodes
-            peak_flow, peak_flood = 0.0, 0.0
-            times = []
-            link_ids = ["C%d" % i for i in range(len(drains))] + ["CX%d" % i for i in range(len(drains))]
-            node_ids = ["J%d_UP" % i for i in range(len(drains))] + ["J%d_DN" % i for i in range(len(drains))]
-            with Simulation(inp) as sim_obj:
-                links, nodes = Links(sim_obj), Nodes(sim_obj)
-                step_times = []
-                for step in sim_obj:
-                    try:
-                        step_times.append(sim_obj._model.getCurrentSimulationTime() if hasattr(sim_obj._model, "getCurrentSimulationTime") else len(step_times) * 300)
-                    except Exception:
-                        step_times.append(len(step_times) * 300)
-                    for lid in link_ids:
-                        try:
-                            f = abs(links[lid].flow)
-                            peak_flow = max(peak_flow, f)
-                        except Exception:
-                            pass
-                    for nid in node_ids:
-                        try:
-                            peak_flood = max(peak_flood, nodes[nid].flooding or 0)
-                        except Exception:
-                            pass
-                times = step_times
+            res = run_network_sync(drains, rainfall, str(outdir))
+            _runs[run_id].update({"inp": res["inp"], "rpt": res["rpt"], "progress": 50})
+            times = res["times"]
+            peak_flow = round(max(res["link_peak"].values() or [0.0]), 4)
+            peak_flood = round(max([v["peak_rate"] for v in res["node_flood"].values()] or [0.0]), 4)
             _runs[run_id]["progress"] = 90
-            rpt = inp.replace(".inp", ".rpt")
-            n_count, n_vol = _parse_flooding(rpt)
-            solved = "Analysis ended" in pathlib.Path(rpt).read_text(errors="ignore")
+            n_count = len(res["node_flood"])
+            n_vol = round(sum(v["volume_m3"] for v in res["node_flood"].values()), 2)
+            solved = res["solved"]
             stats = {"solved": bool(solved), "floodedNodeCount": n_count,
                      "totalFloodVolumeM3": round(n_vol, 2),
                      "peakLinkFlowCMS": round(peak_flow, 4),
@@ -96,7 +120,7 @@ def run_simulation(sim_id: str, sim: Any) -> str:
             _runs[run_id].update({"status": "Completed", "progress": 100,
                                   "results": {"times": times[::stride][:73] if times else [],
                                               "stats": stats},
-                                  "rpt": rpt})
+                                  "rpt": res["rpt"]})
         except Exception as e:
             _runs[run_id].update({"status": "Failed", "error": "swmm-error: %s" % e})
     threading.Thread(target=bg, daemon=True).start()
@@ -154,7 +178,8 @@ def drains_for_bbox(bbox, limit=40):
                 z0, z1 = z1, z0
             rows.append({"id": str(row.get("id", i)), "length_m": round(length, 1),
                          "slope": round(max(0.0005, (z0 - z1) / length), 5),
-                         "z0": round(z0, 2), "z1": round(z1, 2)})
+                         "z0": round(z0, 2), "z1": round(z1, 2),
+                         "x0": x0, "y0": y0, "x1": x1, "y1": y1})
         except Exception:
             continue
     return rows
