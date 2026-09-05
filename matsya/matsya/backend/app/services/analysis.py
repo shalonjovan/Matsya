@@ -190,6 +190,7 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                 "mass_error": fstats.get("mass_error"),
                 "wbCount": fstats.get("wbCount"),
                 "surchargedDrains": fstats.get("surchargedDrains"),
+                "wbObserved": fstats.get("wbObserved", 0),
                 "drainSurcharge": bool((fstats.get("surchargedDrains") or 0) > 0),
                 "totalRainMm": fstats.get("totalRainMm"),
             }

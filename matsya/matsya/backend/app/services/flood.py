@@ -262,7 +262,22 @@ def _waterbodies_in_bbox(bbox, dem_filled, width, height, max_n: int = 20):
                     except Exception:
                         area_f = 50000.0
                 wid = row.get("id", idx) if hasattr(row, "get") else idx
-                out.append({"id": str(wid), "area_m2": area_f, "crest": float(dem_at + 1.0), "geometry": geom})
+                info = {"id": str(wid), "area_m2": area_f, "crest": float(dem_at + 1.0), "geometry": geom,
+                        "kml_idx": idx, "depth_source": "assumed",
+                        "obs_depth_m": None, "bed_m": None}
+                try:
+                    from app.services.hydro.waterbody_enrich import lookup_observations
+                    obs = lookup_observations(idx)
+                    if obs.get("obs_depth_m"):
+                        info["obs_depth_m"] = float(obs["obs_depth_m"])
+                        info["depth_source"] = obs.get("depth_source", "observed-volume")
+                    if obs.get("bathy_bed_min") is not None:
+                        info["bed_m"] = float(obs["bathy_bed_min"])
+                        if info["depth_source"] == "assumed":
+                            info["depth_source"] = "observed-bathy"
+                except Exception:
+                    pass
+                out.append(info)
             except Exception:
                 continue
         return out
@@ -530,11 +545,25 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         wb_infos = []
     wb_masks = _rasterize_masks(wb_infos, bbox, width, height) if wb_infos else []
     wb_objs = []
+    wb_observed = 0
     try:
         from app.services.hydro.waterbody import WaterBody
         for info in (wb_infos or []):
             try:
-                wb_objs.append(WaterBody(area_m2=info["area_m2"], crest=info["crest"], stage=info["crest"] - 0.5))
+                # surveyed bed/depth wins over the assumed 2m (stamped per lake)
+                depth = 2.0
+                src = info.get("depth_source", "assumed")
+                bed_m = info.get("bed_m")
+                if bed_m is not None and bed_m < info["crest"]:
+                    depth = min(15.0, max(0.5, info["crest"] - bed_m))
+                    src = "observed-bathy"
+                elif info.get("obs_depth_m"):
+                    depth = min(15.0, max(0.5, float(info["obs_depth_m"])))
+                if src != "assumed":
+                    wb_observed += 1
+                info["depth_source"] = src
+                wb_objs.append(WaterBody(area_m2=info["area_m2"], crest=info["crest"],
+                                         stage=info["crest"] - 0.5, depth=depth))
             except Exception:
                 continue
     except Exception:
@@ -749,6 +778,7 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "bbox": bbox,
         "mass_error": float(mass_error),
         "wbCount": int(len(wb_objs or [])),
+        "wbObserved": int(wb_observed),
         "surchargedDrains": int(surcharged_now),
         "totalRainMm": total_rain_f,
         "areaKm2": float(area_m2 / 1e6),
