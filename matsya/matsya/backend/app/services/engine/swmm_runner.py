@@ -5,6 +5,7 @@ import uuid
 import json
 import pathlib
 from datetime import datetime, timezone
+from typing import Any
 
 from app.services.engine import swmm_inp
 
@@ -32,12 +33,12 @@ def _parse_flooding(rpt_path):
     return count, vol
 
 
-def run_simulation(sim_id: str, sim: dict) -> str:
+def run_simulation(sim_id: str, sim: Any) -> str:
     run_id = str(uuid.uuid4())
     _runs[run_id] = {"runId": run_id, "simId": sim_id, "engine": "swmm",
                      "status": "Running", "progress": 10,
                      "created": datetime.now(timezone.utc).isoformat()}
-    payload = dict(sim)
+    payload = sim.model_dump(mode="python") if hasattr(sim, "model_dump") else dict(sim)
 
     def bg():
         try:
@@ -61,6 +62,8 @@ def run_simulation(sim_id: str, sim: dict) -> str:
             from pyswmm import Simulation, Links, Nodes
             peak_flow, peak_flood = 0.0, 0.0
             times = []
+            link_ids = ["C%d" % i for i in range(len(drains))] + ["CX%d" % i for i in range(len(drains))]
+            node_ids = ["J%d_UP" % i for i in range(len(drains))] + ["J%d_DN" % i for i in range(len(drains))]
             with Simulation(inp) as sim_obj:
                 links, nodes = Links(sim_obj), Nodes(sim_obj)
                 step_times = []
@@ -69,13 +72,13 @@ def run_simulation(sim_id: str, sim: dict) -> str:
                         step_times.append(sim_obj._model.getCurrentSimulationTime() if hasattr(sim_obj._model, "getCurrentSimulationTime") else len(step_times) * 300)
                     except Exception:
                         step_times.append(len(step_times) * 300)
-                    for lid in list(links)[:50]:
+                    for lid in link_ids:
                         try:
                             f = abs(links[lid].flow)
                             peak_flow = max(peak_flow, f)
                         except Exception:
                             pass
-                    for nid in list(nodes)[:60]:
+                    for nid in node_ids:
                         try:
                             peak_flood = max(peak_flood, nodes[nid].flooding or 0)
                         except Exception:

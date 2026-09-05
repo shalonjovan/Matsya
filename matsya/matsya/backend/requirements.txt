@@ -13,3 +13,4 @@ pyproj
 networkx
 fiona
 Pillow
+pyswmm==2.1.0
