@@ -52,3 +52,10 @@ def test_empty_drains_fails_honestly():
         time.sleep(2)
     assert r["status"] == "Failed"
     assert "blocked-no-drains" in r["error"]
+
+def test_bbox_drains_feed_runner():
+    from app.services.engine.swmm_runner import drains_for_bbox
+    rows = drains_for_bbox([80.15, 13.08, 80.20, 13.13], limit=10)
+    assert 1 <= len(rows) <= 10
+    r0 = rows[0]
+    assert r0["length_m"] > 0 and r0["z0"] >= r0["z1"]

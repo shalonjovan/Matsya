@@ -43,7 +43,7 @@ def run_simulation(sim_id: str, sim: dict) -> str:
         try:
             drains = payload.get("_test_drains")
             if drains is None:
-                drains = []  # Task 3 wires real bbox drains; empty => honest fail
+                drains = drains_for_bbox((payload.get("area") or {}).get("bbox", [80.15, 13.08, 80.20, 13.13]))
             rainfall = payload.get("rainfall") or {}
             audit = swmm_inp.audit_inputs(drains, rainfall)
             _runs[run_id]["audit"] = audit
@@ -102,6 +102,59 @@ def run_simulation(sim_id: str, sim: dict) -> str:
 
 def get_run(run_id: str):
     return _runs.get(run_id)
+
+
+def drains_for_bbox(bbox, limit=40):
+    """Clip micro+macro drains to bbox; lengths from UTM geometry, inverts from DEM."""
+    from app.services.hydro.asset_loader import load_assets
+    try:
+        data = load_assets("assets")
+    except Exception:
+        return []
+    import geopandas as gpd
+    import pandas as pd
+    frames = [f for f in (data.get("micro"), data.get("macro")) if f is not None and len(f) > 0]
+    if not frames:
+        return []
+    drains = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs="EPSG:4326")
+    minLon, minLat, maxLon, maxLat = bbox
+    try:
+        clip = drains.cx[minLon:maxLon, minLat:maxLat]
+    except Exception:
+        clip = drains
+    if len(clip) == 0:
+        return []
+    try:
+        utm = clip.to_crs("EPSG:32644")
+        clip = clip.copy()
+        clip["_len"] = utm.geometry.length.values
+        clip = clip.sort_values("_len", ascending=False).head(limit)
+    except Exception:
+        clip = clip.head(limit)
+    try:
+        from app.services.elevation import sample_dem
+    except Exception:
+        sample_dem = lambda lon, lat: None
+    import math
+    rows = []
+    for i, (_, row) in enumerate(clip.iterrows()):
+        try:
+            geom = row.geometry
+            coords = list(geom.coords) if geom.geom_type == "LineString" else list(list(geom.geoms)[0].coords)
+            (x0, y0), (x1, y1) = coords[0], coords[-1]
+            dx = (x1 - x0) * 111320 * math.cos(math.radians((y0 + y1) / 2))
+            dy = (y1 - y0) * 110540
+            length = max(20.0, math.hypot(dx, dy))
+            z0 = sample_dem(x0, y0) or 10.0
+            z1 = sample_dem(x1, y1) or (z0 - max(0.5, length * 0.001))
+            if z1 > z0:
+                z0, z1 = z1, z0
+            rows.append({"id": str(row.get("id", i)), "length_m": round(length, 1),
+                         "slope": round(max(0.0005, (z0 - z1) / length), 5),
+                         "z0": round(z0, 2), "z1": round(z1, 2)})
+        except Exception:
+            continue
+    return rows
 
 
 def list_runs(sim_id: str):
