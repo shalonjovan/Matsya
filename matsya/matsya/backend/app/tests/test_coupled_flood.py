@@ -86,17 +86,22 @@ def test_river_step_overtops_above_bankfull():
     from app.services.hydro.river import RiverReach
     from app.services.hydro.river_capacity import reach_capacity
     cap = reach_capacity(2000.0, 0.001, width_m=5.0, depth_m=1.5)
-    reach = RiverReach(length=2000, slope=0.001)
     mask = np.zeros((10, 10), dtype=bool); mask[5, :] = True
+    # below bankfull, sustained: all routed to sea, nothing ponds
+    reach = RiverReach(length=2000, slope=0.001)
     surface = np.zeros((10, 10))
-    # below bankfull: all routed to sea, nothing ponds
-    r = _river_step(reach, {"qbank": cap["qbank"]}, cap["qbank"] * 0.5 * 300, 300, surface, mask, 900.0)
+    for _ in range(4):
+        r = _river_step(reach, {"qbank": cap["qbank"]}, cap["qbank"] * 0.5 * 300, 300, surface, mask, 900.0)
     assert r["spill_vol"] == 0.0 and r["overtopped"] is False and r["sea_vol"] > 0
     assert surface.sum() == 0.0
-    # above bankfull: excess ponds on the mask
-    r2 = _river_step(reach, {"qbank": cap["qbank"]}, cap["qbank"] * 3.0 * 300, 300, surface, mask, 900.0)
+    # sustained 3x bankfull: wedge storage exceeds steady-bankfull storage -> ponds
+    reach2 = RiverReach(length=2000, slope=0.001)
+    surface2 = np.zeros((10, 10))
+    r2 = None
+    for _ in range(4):
+        r2 = _river_step(reach2, {"qbank": cap["qbank"]}, cap["qbank"] * 3.0 * 300, 300, surface2, mask, 900.0)
     assert r2["overtopped"] is True and r2["spill_vol"] > 0
-    assert surface[5, :].sum() > 0 and surface[0, :].sum() == 0.0
+    assert surface2[5, :].sum() > 0 and surface2[0, :].sum() == 0.0
 
 def test_swmm_coupling_keys_and_mass():
     from app.services.flood import generate_flood

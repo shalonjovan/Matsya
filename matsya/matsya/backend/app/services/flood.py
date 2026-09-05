@@ -493,8 +493,9 @@ def _river_step(reach_obj, reach_info, inflow_vol_m3, dt, surface, mask, cell_ar
     """Route one reach for one timestep.
 
     Returns {"sea_vol": float, "spill_vol": float, "overtopped": bool}.
-    Overtop (inflow rate above bankfull) ponds on the reach mask; routed
-    outflow returns to the sea. Pure function of its inputs + reach state.
+    Overtop when Muskingum wedge storage S = K*(x*I + (1-x)*O) exceeds
+    steady-bankfull storage K*qbank; the excess ponds on the reach mask and
+    is withheld from downstream outflow. Routed outflow returns to the sea.
     """
     sea_vol, spill_vol, overtopped = 0.0, 0.0, False
     try:
@@ -508,23 +509,35 @@ def _river_step(reach_obj, reach_info, inflow_vol_m3, dt, surface, mask, cell_ar
     except Exception:
         qout = 0.0
     try:
-        sea_vol = float(qout) * dt
-    except Exception:
-        sea_vol = 0.0
-    try:
         qbank = float((reach_info or {}).get("qbank", 0) or 0)
     except Exception:
         qbank = 0.0
-    if qbank > 0 and qin > qbank and mask is not None:
+    try:
+        _K = float(getattr(reach_obj, "K", 600.0)) if reach_obj is not None else 600.0
+        _x = float(getattr(reach_obj, "x", 0.2)) if reach_obj is not None else 0.2
+    except Exception:
+        _K, _x = 600.0, 0.2
+    try:
+        sea_vol = float(qout) * dt
+    except Exception:
+        sea_vol = 0.0
+    if qbank > 0 and _K > 0:
         try:
-            excess = (qin - qbank) * dt
-            _pond_volume(surface, mask, excess, cell_area)
-            spill_vol = excess
-            overtopped = True
+            stored = _K * (_x * qin + (1.0 - _x) * qout)
+            bankfull_stored = _K * qbank
+            if stored > bankfull_stored:
+                excess = stored - bankfull_stored
+                if mask is not None:
+                    _pond_volume(surface, mask, excess, cell_area)
+                    spill_vol = excess
+                # ponded water does not continue downstream
+                try:
+                    sea_vol = max(0.0, sea_vol - excess)
+                except Exception:
+                    pass
+                overtopped = True
         except Exception:
             pass
-    elif qbank > 0 and qin > qbank:
-        overtopped = True
     return {"sea_vol": sea_vol, "spill_vol": spill_vol, "overtopped": overtopped}
 
 
@@ -802,12 +815,17 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     river_assumed += 1
                 _K = min(3600.0, max(60.0, float(_rr["length_m"]) / 1.5))
                 _rid = str(_rr.get("id"))
-                river_objs[_rid] = RiverReach(length=_rr["length_m"], slope=_rr["slope"], K=_K, x=0.2)
-                river_by_key[_rid] = len(river_reaches)
+                _rpos = len(river_reaches)
+                try:
+                    _init_q = float(_rr.get("qbank", 0) or 0) * fill_frac
+                except Exception:
+                    _init_q = 0.0
+                river_objs[_rpos] = RiverReach(length=_rr["length_m"], slope=_rr["slope"], K=_K, x=0.2, init_q=_init_q)
+                river_by_key[_rid] = _rpos
                 try:
                     _lbl = str(_rr.get("_label", _rid))
                     if _lbl != _rid:
-                        river_by_key[_lbl] = len(river_reaches)
+                        river_by_key[_lbl] = _rpos
                 except Exception:
                     pass
                 river_reaches.append(_rr)
@@ -816,6 +834,15 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                 continue
     except Exception:
         river_reaches, river_objs, river_masks = [], {}, []
+    try:
+        river_storage_init = 0.0
+        for _ro in (river_objs or {}).values():
+            try:
+                river_storage_init += float(getattr(_ro, "K", 0.0)) * float(getattr(_ro, "_prev_out", 0.0))
+            except Exception:
+                continue
+    except Exception:
+        river_storage_init = 0.0
     surface = np.zeros((height, width), dtype=np.float64)
     total_outflow_vol = 0.0
     total_sea_vol = 0.0
@@ -915,18 +942,19 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     except Exception:
                         _tgt = "sea"
                     if _tgt.startswith("river:") and river_by_key:
-                        # river-mapped: sea-bound share goes to the reach instead of the sea.
-                        # wb-pool share kept EXACTLY as legacy, so lake behavior cannot regress.
+                        # river-mapped: the drain's water is river-bound, so the whole
+                        # fitted + runoff share goes to the reach (not lakes, not sea).
+                        # Excess still ponds via the surcharge block below, unchanged.
                         _rkey = _tgt.split(":", 1)[1]
                         _rpos = river_by_key.get(_rkey, river_by_key.get(str(_rkey)))
                         if _rpos is not None:
-                            river_inflow[_rpos] = river_inflow.get(_rpos, 0.0) + qin * dt * 0.4
+                            river_inflow[_rpos] = river_inflow.get(_rpos, 0.0) + (q_fit + qin * 0.4) * dt
                         else:
                             total_sea_vol += qin * dt * 0.4
-                        if wb_objs:
-                            wb_inflow_vol += q_fit * dt * 0.6
-                        else:
-                            total_sea_vol += q_fit * dt * 0.6
+                            if wb_objs:
+                                wb_inflow_vol += q_fit * dt * 0.6
+                            else:
+                                total_sea_vol += q_fit * dt * 0.6
                         if wb_objs:
                             wb_inflow_vol += q_fit * dt * 0.6
                         else:
@@ -1006,7 +1034,7 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     _invol = 0.0
                 if _invol <= 0:
                     continue
-                _res = _river_step(river_objs.get(str(_rr.get("id"))), _rr, _invol, dt,
+                _res = _river_step(river_objs.get(_ri), _rr, _invol, dt,
                                    surface, river_masks[_ri] if _ri < len(river_masks) else None,
                                    cell_area)
                 try:
@@ -1063,7 +1091,23 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         wb_vol = 0.0
         wb_delta = 0.0
     try:
-        stored_out = surface_vol + wb_delta + float(total_outflow_vol) + float(total_sea_vol)
+        # Muskingum reach storage Δ (S = K*(x*I + (1-x)*O)); withholds live in reaches
+        _s_now, _s_init = 0.0, 0.0
+        for _ro in (river_objs or {}).values():
+            try:
+                _Kk = float(getattr(_ro, "K", 0.0)); _xx = float(getattr(_ro, "x", 0.2))
+                _s_now += _Kk * (_xx * float(getattr(_ro, "_prev_in", 0.0)) + (1.0 - _xx) * float(getattr(_ro, "_prev_out", 0.0)))
+            except Exception:
+                continue
+        try:
+            _s_init = float(river_storage_init)
+        except Exception:
+            _s_init = 0.0
+        river_delta = _s_now - _s_init
+    except Exception:
+        river_delta = 0.0
+    try:
+        stored_out = surface_vol + wb_delta + river_delta + float(total_outflow_vol) + float(total_sea_vol)
         mass_error = abs(stored_out - rain_vol_total) / max(1.0, rain_vol_total) if rain_vol_total > 0 else 0.0
         mass_error = float(min(1.0, mass_error))
     except Exception:

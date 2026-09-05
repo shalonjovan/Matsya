@@ -141,7 +141,15 @@ def build_reaches(bbox, max_n=10):
                     except Exception:
                         pass
                 cap = reach_capacity(length, slope)
-                rid = str(row.get("id", i)) if hasattr(row, "get") else str(i)
+                try:
+                    _idv = row.get("id", None) if hasattr(row, "get") else None
+                    import pandas as _pdi
+                    if _idv is None or (isinstance(_idv, float) and _pdi.isna(_idv)) or str(_idv).strip().lower() == "none":
+                        rid = "R%s" % str(_lbl)
+                    else:
+                        rid = str(_idv)
+                except Exception:
+                    rid = "R%s" % str(_lbl)
                 out.append({"id": rid, "_label": str(_lbl), "length_m": round(length, 1), "slope": slope,
                             "width_m": cap["width_m"], "depth_m": cap["depth_m"],
                             "qbank": cap["qbank"], "source": cap["source"], "coords": coords})
