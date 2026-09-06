@@ -28,3 +28,24 @@ def test_frames_are_distinct():
                                  width=10, height=10, steps=8)
     assert len(snaps) == 8
     assert not np.allclose(snaps[0], snaps[-1])
+
+def test_stale_flood_heals_to_full_frames():
+    import json, time
+    from app.services.simulation_store import store
+    from app.models.simulation import Simulation
+    sim = Simulation.model_validate({"name": "stale", "area": {"bbox": [80.15, 13.08, 80.20, 13.13], "crs": "EPSG:4326"},
+                                     "rainfall": {"rateMmHr": 50, "durationHr": 1}})
+    store._save(sim)
+    fj_path = store.base_path / sim.id / "flood" / "flood.json"
+    fj_path.parent.mkdir(parents=True, exist_ok=True)
+    fj_path.write_text(json.dumps({"maxDepth": 0.5, "steps": 3, "width": 10, "height": 10}))
+    stats = None
+    for _ in range(60):
+        got = store.get(sim.id)
+        f = getattr(got, "flood", None)
+        s = (f.get("stats") if isinstance(f, dict) else getattr(f, "stats", None)) if f else None
+        if isinstance(s, dict) and s.get("floodVersion") == 2:
+            stats = s
+            break
+        time.sleep(2)
+    assert stats is not None and stats["steps"] >= 6 and "minutesPerFrame" in stats
