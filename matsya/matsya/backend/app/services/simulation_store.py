@@ -258,6 +258,38 @@ class SimulationStore:
                                 continue
         except Exception:
             pass
+        # heal v1 (3-frame) floods to duration-derived playback (floodVersion 2)
+        try:
+            _fst = sim.flood.stats if (sim.flood is not None and getattr(sim.flood, "stats", None)) else None
+            if isinstance(_fst, dict) and _fst.get("floodVersion") != 2:
+                _cur = getattr(sim, "status", None)
+                if str(getattr(_cur, "value", _cur)) != "Running":
+                    sim.status = StatusEnum.Running
+                    try:
+                        sim.metadata.status = StatusEnum.Running
+                    except Exception:
+                        pass
+                    self._save(sim)
+                    _list_cache["data"] = None
+
+                    def _heal(sid=sim_id):
+                        try:
+                            from app.services.flood import ensure_flood
+                            _s = self.get(sid)
+                            ensure_flood(_s)
+                            try:
+                                _s.status = StatusEnum.Completed
+                                _s.metadata.status = StatusEnum.Completed
+                            except Exception:
+                                pass
+                            self._save(_s)
+                            _list_cache["data"] = None
+                        except Exception:
+                            pass
+
+                    threading.Thread(target=_heal, daemon=True).start()
+        except Exception:
+            pass
         return sim
 
     def update(self, sim_id: str, patch: dict) -> Simulation:

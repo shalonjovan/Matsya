@@ -19,6 +19,15 @@ def _lat_lon_to_row_col(lat: float, lon: float, bbox, rows: int, cols: int):
     return r, c
 
 
+def _clock(minutes: float) -> str:
+    """Minutes-since-onset -> HH:MM."""
+    try:
+        m = int(round(float(minutes)))
+        return "%02d:%02d" % (m // 60, m % 60)
+    except Exception:
+        return "00:00"
+
+
 def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
     # Try real DEM sample first, fallback to mock
     try:
@@ -54,6 +63,9 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
     else:
         # Try real flood snapshots if sim.flood exists
         floodDepth = None
+        minutesPerFrame = 5.0
+        snaps = None
+        r, c = 0, 0
         try:
             has_flood = False
             try:
@@ -134,13 +146,37 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                 # Clamp steps
                 steps = max(1, min(steps, 73))
 
-                # Generate snapshots (deterministic per bbox+rainfall+fill)
+                # minutes-per-frame from sim stats (Phase 4 clock for labels)
+                try:
+                    _fstats = None
+                    _ff = sim.flood  # type: ignore
+                    if isinstance(_ff, dict):
+                        _fstats = _ff.get("stats") if isinstance(_ff.get("stats"), dict) else None
+                    else:
+                        _sa = getattr(_ff, "stats", None)
+                        _fstats = _sa if isinstance(_sa, dict) else None
+                    minutesPerFrame = float((_fstats or {}).get("minutesPerFrame", 5.0) or 5.0)
+                except Exception:
+                    minutesPerFrame = 5.0
+
+                # Prefer cached frame stack (exact, no recompute); fall back to regen
+                snaps = None
                 try:
                     _p = getattr(sim, "parameters", None)
                     _fill = _p.get("initialFillPct", 75.0) if isinstance(_p, dict) else getattr(_p, "initialFillPct", 75.0)
                 except Exception:
                     _fill = 75.0
-                snaps, _, _ = generate_flood(bbox, rainfall, width=width, height=height, steps=steps, initial_fill_pct=_fill)
+                try:
+                    import numpy as _npp
+                    from app.services.simulation_store import store as _store
+                    _sid = getattr(sim, "id", None) or (sim.get("id") if isinstance(sim, dict) else None)
+                    _npy = _store.base_path / f"{_sid}" / "flood" / "snapshots.npy" if _sid else None
+                    if _npy is not None and _npy.exists():
+                        snaps = [a for a in _npp.load(str(_npy))]
+                except Exception:
+                    snaps = None
+                if snaps is None:
+                    snaps, _, _ = generate_flood(bbox, rainfall, width=width, height=height, steps=steps, initial_fill_pct=_fill)
 
                 # Map time to snapshot index (time is snapshot index per spec)
                 try:
@@ -198,12 +234,33 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                 "wbObserved": fstats.get("wbObserved", 0),
                 "spillVolumeM3": fstats.get("spillVolumeM3", 0),
                 "overtoppedLakes": fstats.get("overtoppedLakes", 0),
+                "riverSpillVolumeM3": fstats.get("riverSpillVolumeM3", 0),
+                "overtoppedRivers": fstats.get("overtoppedRivers", []),
+                "riverCount": fstats.get("riverCount", 0),
+                "swmmCoupled": fstats.get("swmmCoupled", False),
+                "swmmFloodVolumeM3": fstats.get("swmmFloodVolumeM3", 0),
                 "initialFillPct": fstats.get("initialFillPct", 75.0),
                 "drainSurcharge": bool((fstats.get("surchargedDrains") or 0) > 0),
                 "totalRainMm": fstats.get("totalRainMm"),
             }
     except Exception:
         hydro_ctx = {}
+    # cell hydrograph labels from the frame stack (same frames the map plays)
+    try:
+        _mpf = float(minutesPerFrame)
+        _ok = bool(snaps) and isinstance(r, int) and isinstance(c, int)
+        _series = [float(snaps[k][r, c]) for k in range(len(snaps))] if _ok else []
+        _wet = [k for k, v in enumerate(_series) if v > 0.05]
+        if _wet:
+            _firstFlooded = _clock(_wet[0] * _mpf)
+            _peak_idx = max(range(len(_series)), key=lambda k: _series[k])
+            _peak = _clock(_peak_idx * _mpf) if _series[_peak_idx] > 0.05 else None
+            _n = len(_wet) * _mpf
+            _duration = "%dh %02dm" % (int(_n // 60), int(_n % 60))
+        else:
+            _firstFlooded, _peak, _duration = None, None, None
+    except Exception:
+        _firstFlooded, _peak, _duration = "00:05", "01:20", "2h 10m"
     return {
         "lat": lat, "lon": lon,
         "elevation": elevation,
@@ -211,9 +268,9 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
         "water_depth": floodDepth,
         "velocity": velocity,
         "wse": elevation + floodDepth,
-        "firstFlooded": "00:05" if floodDepth>0.05 else None,
-        "peak": "01:20" if floodDepth>0.5 else None,
-        "duration": "2h 10m" if floodDepth>0.05 else None,
+        "firstFlooded": _firstFlooded,
+        "peak": _peak,
+        "duration": _duration,
         "rainfall": getattr(getattr(sim, "rainfall", None), "rateMmHr", 50) if hasattr(sim,"rainfall") else 50,  # type: ignore[attr-defined]
         "nearestDrain": "D-42 (12m)",
         "nearestRiver": "Adyar (450m)",

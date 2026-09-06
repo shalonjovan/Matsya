@@ -1,5 +1,5 @@
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import MapView from "./MapView"
 import LayerPanel from "./LayerPanel"
 import Timeline from "./Timeline"
@@ -25,6 +25,10 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
   const [selectedPoint, setSelectedPoint] = useState<any>(null)
   const [selectedWaterbody, setSelectedWaterbody] = useState<string | null>(null)
   const [time, setTime] = useState(0)
+  const floodSteps = Number((simulation as any)?.flood?.steps ?? (simulation as any)?.flood?.stats?.steps ?? 73) || 73
+  const tmax = Math.max(0, floodSteps - 1)
+  const mpf = Number((simulation as any)?.flood?.stats?.minutesPerFrame ?? 5) || 5
+  useEffect(() => { setTime(t => Math.min(t, tmax)) }, [tmax])
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<"LAYERS" | "INSPECTOR" | "IMPACTS" | "REPORTS" | "ALL">("LAYERS")
 
@@ -76,7 +80,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
               key={simulation.id}
               simulation={simulation}
               layers={layers}
-              time={time}
+              time={Math.min(time, tmax)}
               onPointSelect={handlePointSelect}
               onWaterbodySelect={handleWaterbodySelect}
             />
@@ -301,7 +305,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
       </div>
 
       {/* Persistent Bottom Timeline */}
-      <Timeline time={time} onChange={setTime} max={72} />
+      <Timeline time={Math.min(time, tmax)} onChange={setTime} max={tmax} minutesPerFrame={mpf} />
     </div>
   )
 }

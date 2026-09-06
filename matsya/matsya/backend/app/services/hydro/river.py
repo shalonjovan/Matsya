@@ -5,13 +5,13 @@ class RiverReach:
     For MVP stub with K=600s, x=0.2, dt=300s: C0 ~0.14, C1 ~0.57, C2 ~0.29
     Simplified further: single lag attenuation for demo.
     """
-    def __init__(self, length: float = 2000, slope: float = 0.001, K: float = 600, x: float = 0.2):
+    def __init__(self, length: float = 2000, slope: float = 0.001, K: float = 600, x: float = 0.2, init_q: float = 0.0):
         self.length = float(length)
         self.slope = float(slope)
         self.K = float(K)
         self.x = float(x)
-        self._prev_in = 0.0
-        self._prev_out = 0.0
+        self._prev_in = float(init_q)
+        self._prev_out = float(init_q)
         # Precompute Muskingum coefficients for dt=300 (will recompute per step if dt differs)
         self._dt = 300
 

@@ -102,7 +102,7 @@ export default function PointInspector({ point }: any){
 
         {point.hydro && (
           <div className="p-2 rounded-lg bg-slate-900/50 border border-slate-800/80 text-[11px] text-slate-400 font-mono">
-            mass err {point.hydro.mass_error ?? "—"} • {point.hydro.wbCount ?? 0} waterbodies{point.hydro.wbObserved ? ` (${point.hydro.wbObserved} observed)` : ""} • {point.hydro.surchargedDrains ?? 0} surcharged{point.hydro.drainSurcharge ? " • surcharge" : ""}{point.hydro.spillVolumeM3 ? ` • spill ${point.hydro.spillVolumeM3} m³` : ""}
+            mass err {point.hydro.mass_error ?? "—"} • {point.hydro.wbCount ?? 0} waterbodies{point.hydro.wbObserved ? ` (${point.hydro.wbObserved} observed)` : ""} • {point.hydro.surchargedDrains ?? 0} surcharged{point.hydro.drainSurcharge ? " • surcharge" : ""}{point.hydro.spillVolumeM3 ? ` • spill ${point.hydro.spillVolumeM3} m³` : ""}{point.hydro.swmmFloodVolumeM3 ? ` • swmm ${point.hydro.swmmFloodVolumeM3} m³` : ""}{point.hydro.riverSpillVolumeM3 ? ` • river spill ${point.hydro.riverSpillVolumeM3} m³` : ""}
           </div>
         )}
       </div>
