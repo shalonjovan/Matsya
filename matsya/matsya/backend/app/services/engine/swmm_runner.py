@@ -33,7 +33,7 @@ def _parse_flooding(rpt_path):
     return count, vol
 
 
-def run_network_sync(drains, rainfall, workdir):
+def run_network_sync(drains, rainfall, workdir, outfall_stages=None):
     """Run one SWMM network synchronously. Returns solved + per-node floods."""
     import pathlib
     from pyswmm import Simulation, Links, Nodes
@@ -41,7 +41,7 @@ def run_network_sync(drains, rainfall, workdir):
     outdir = pathlib.Path(workdir)
     outdir.mkdir(parents=True, exist_ok=True)
     inp = swmm_inp.build_inp(drains, rainfall, [80.15, 13.08, 80.20, 13.13],
-                             str(outdir / "network.inp"))
+                             str(outdir / "network.inp"), outfall_stages=outfall_stages)
     link_ids, node_ids = [], []
     for i in range(len(drains)):
         link_ids += ["C%d" % i, "CX%d" % i]
@@ -78,8 +78,30 @@ def run_network_sync(drains, rainfall, workdir):
     floods = {nid: {"volume_m3": round(node_vol.get(nid, 0.0), 1),
                     "peak_rate": round(node_peak.get(nid, 0.0), 4)}
               for nid in node_vol if node_vol.get(nid, 0.0) > 0}
+    outfall_volume_m3 = _parse_outfall_volume(rpt)
     return {"solved": bool(solved), "node_flood": floods, "link_peak": link_peak,
-            "times": step_times, "rpt": rpt, "inp": inp}
+            "times": step_times, "rpt": rpt, "inp": inp,
+            "outfall_volume_m3": outfall_volume_m3}
+
+
+def _parse_outfall_volume(rpt_path):
+    """Sum Total Volume (10^6 ltr) over Outfall Loading Summary rows -> m3."""
+    try:
+        text = pathlib.Path(rpt_path).read_text(errors="ignore")
+    except Exception:
+        return 0.0
+    i = text.find("Outfall Loading Summary")
+    if i < 0:
+        return 0.0
+    total = 0.0
+    for line in text[i:].splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[0].startswith("O") and parts[0][1:].isdigit():
+            try:
+                total += float(parts[4]) * 1000.0  # 10^6 ltr -> m3
+            except ValueError:
+                continue
+    return round(total, 1)
 
 
 def run_simulation(sim_id: str, sim: Any) -> str:

@@ -42,7 +42,10 @@ def _rain_series(rainfall):
     return [(0.0, rate), (dur, rate), (dur + 0.01, 0.0)]
 
 
-def build_inp(drains, rainfall, bbox, out_path):
+def build_inp(drains, rainfall, bbox, out_path, outfall_stages=None):
+    """Build a SWMM input file. outfall_stages: {outfall_index: stage_m} switches
+    those outfalls from FREE to FIXED (backwater coupling). Default None keeps
+    today's FREE rows byte-identical."""
     drains = list(drains or [])
     series = _rain_series(rainfall)
     end_h = series[-1][0] + 1.0
@@ -67,9 +70,25 @@ def build_inp(drains, rainfall, bbox, out_path):
         z1 = float(d.get("z1", z0 - 1.0))
         L.append("J%d_UP  %.3f  2  0  0  0" % (i, z0))
         L.append("J%d_DN  %.3f  2  0  0  0" % (i, z1))
+    # outfall inverts follow their junction (capped 2% connector slope) so the
+    # short CX links never form supercritical drops that destabilize DYNWAVE
+    _o_inv = []
+    for i, d in enumerate(drains):
+        try:
+            _z1 = float(d.get("z1", 10.0))
+        except Exception:
+            _z1 = 10.0
+        _o_inv.append(round(max(0.0, _z1 - 0.02 * 50.0), 3))
     L.append("[OUTFALLS]")
     for i in range(len(drains)):
-        L.append("O%d  5  FREE  NO" % i)
+        try:
+            _st = (outfall_stages or {}).get(i, (outfall_stages or {}).get(str(i)))
+        except Exception:
+            _st = None
+        if _st is None:
+            L.append("O%d  %.3f  FREE  NO" % (i, _o_inv[i]))
+        else:
+            L.append("O%d  %.3f  FIXED  %.3f  NO" % (i, _o_inv[i], float(_st)))
     L.append("[CONDUITS]")
     for i, d in enumerate(drains):
         length = max(20.0, float(d.get("length_m") or 200.0))
