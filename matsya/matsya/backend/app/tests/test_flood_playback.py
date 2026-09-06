@@ -49,3 +49,36 @@ def test_stale_flood_heals_to_full_frames():
             break
         time.sleep(2)
     assert stats is not None and stats["steps"] >= 6 and "minutesPerFrame" in stats
+
+def test_point_labels_come_from_frames():
+    from fastapi.testclient import TestClient
+    from app.main import app
+    import time as _t
+    c = TestClient(app)
+    r = c.post("/api/simulations", json={"name": "lbl", "area": {"bbox": [80.15, 13.08, 80.20, 13.13], "crs": "EPSG:4326"},
+                                         "rainfall": {"rateMmHr": 100, "durationHr": 2}})
+    assert r.status_code == 201
+    sid = r.json()["id"]
+    for _ in range(60):
+        g = c.get(f"/api/simulations/{sid}").json()
+        if (g.get("flood") or {}).get("stats", {}).get("minutesPerFrame"):
+            break
+        _t.sleep(2)
+    p = c.get(f"/api/simulations/{sid}/point?lat=13.10&lon=80.17&time=0").json()
+    assert p["floodDepth"] is not None
+    # computed labels sit on the 15-min grid for this 2hr sim (statics were 00:05/01:20).
+    # locate the wettest cell from the cached frames so the assertions bite.
+    import numpy as _np
+    from app.services.simulation_store import store as _store
+    arr = _np.load(str(_store.base_path / sid / "flood" / "snapshots.npy"))
+    ri, ci = _np.unravel_index(int(_np.argmax(arr[-1])), arr[-1].shape)
+    minLon, minLat, maxLon, maxLat = (80.15, 13.08, 80.20, 13.13)
+    la = maxLat - (ri + 0.5) * (maxLat - minLat) / arr.shape[1]
+    lo = minLon + (ci + 0.5) * (maxLon - minLon) / arr.shape[2]
+    assert float(arr[-1][ri, ci]) > 0.05
+    target = c.get(f"/api/simulations/{sid}/point?lat={la}&lon={lo}&time=0").json()
+    assert (target["floodDepth"] or 0) > 0.05
+    assert target["firstFlooded"] is not None
+    assert int(target["firstFlooded"].split(":")[1]) % 15 == 0
+    if target["peak"]:
+        assert int(target["peak"].split(":")[1]) % 15 == 0
