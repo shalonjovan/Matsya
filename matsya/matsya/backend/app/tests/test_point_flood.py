@@ -17,6 +17,7 @@ def test_point_floodDepth():
     sid = r.json()["id"]
     # wait for async bg flood generation (coupled model slower than old bathtub)
     import time as _t
+    sj = {}
     for _ in range(45):
         g = c.get(f"/api/simulations/{sid}")
         try:
@@ -28,7 +29,9 @@ def test_point_floodDepth():
         _t.sleep(2)
     bbox = [80.15, 13.08, 80.20, 13.13]
     rainfall = {"rateMmHr": 50, "durationHr": 1}
-    snaps, _, stats = generate_flood(bbox, rainfall, width=180, height=180, steps=3)
+    # reference must use the sim's stored step count (duration-derived frames)
+    _nsteps = ((sj.get("flood") or {}).get("stats") or {}).get("steps", 3) or 3
+    snaps, _, stats = generate_flood(bbox, rainfall, width=180, height=180, steps=_nsteps)
 
     def latLonToRowCol(lat, lon, bbox, rows, cols):
         minLon, minLat, maxLon, maxLat = bbox
