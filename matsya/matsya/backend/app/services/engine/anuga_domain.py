@@ -49,21 +49,29 @@ def _load_assets_cached():
     return data
 
 
+def _v(rainfall, keys, default):
+    for k in keys:
+        v = (rainfall or {}).get(k)
+        if v is not None:
+            return float(v)
+    return default
+
+
 def _rain_series(rainfall):
-    """Mirror of swmm_inp._rain_series shape: [(hours, mm/hr)]."""
-    try:
-        from app.services.engine.swmm_inp import _rain_series as _swmm_rs
-        return [(float(t), float(v)) for t, v in _swmm_rs(rainfall)]
-    except Exception:
-        pass
+    """Mirror of swmm_inp._rain_series shape: [(hours, mm/hr)].
+
+    NOTE: explicit None checks (not `or`) so a 0 mm/hr test storm stays 0.
+    """
     rainfall = rainfall or {}
     if rainfall.get("mode") == "variable" and rainfall.get("curve", {}).get("values"):
         vals = list(rainfall["curve"]["values"])
-        total = float(rainfall.get("totalTime") or 6)
+        total = _v(rainfall, ("totalTime", "durationHr"), 6.0)
         dt = total / max(1, len(vals))
         return [(i * dt, float(v)) for i, v in enumerate(vals)]
-    rate = float(rainfall.get("rateMmHr") or rainfall.get("constantRate") or 50)
-    dur = float(rainfall.get("durationHr") or 1)
+    rate = _v(rainfall, ("rateMmHr", "constantRate"), 50.0)
+    dur = _v(rainfall, ("durationHr", "totalTime"), 1.0)
+    if dur <= 0:
+        return [(0.0, rate)]
     return [(0.0, rate), (dur, rate)]
 
 
