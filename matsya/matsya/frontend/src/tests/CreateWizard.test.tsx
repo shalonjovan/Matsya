@@ -42,6 +42,23 @@ describe("CreateWizard", ()=>{
     expect(await screen.findByText(/without drainage/)).toBeInTheDocument()
   })
 
+  it("fills constant inputs from live forecast", async ()=>{
+    vi.stubGlobal("fetch", vi.fn(async (url: any) => {
+      if (String(url).includes("/api/forecast/rain")) {
+        return { ok: true, json: async () => ({ source: "open-meteo", rateMmHr: 12.0, durationHr: 6, lat: 13.1, lon: 80.17, cached: false }) }
+      }
+      return { ok: true, json: async () => ({ drains: 52, snapped_to_waterbody: 20, to_river: 7, to_sea: 25 }) }
+    }))
+    render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} />)
+    fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
+    fireEvent.click(screen.getByText("↻ Use live forecast"))
+    await screen.findByText(/open-meteo.*12 mm\/hr/)
+    const inputs = document.querySelectorAll("input")
+    const vals = [...inputs].map(i => (i as HTMLInputElement).value)
+    expect(vals).toContain("12")
+    expect(vals).toContain("6")
+  })
+
   it("sends initialFillPct in run payload", async ()=>{
     const calls: any[] = []
     vi.stubGlobal("fetch", vi.fn(async (url: any, opts: any) => {

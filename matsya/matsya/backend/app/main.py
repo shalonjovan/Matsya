@@ -10,6 +10,7 @@ from app.routers.hydro import router as hydro_router, sim_hydro_router
 from app.routers.rainfall import router as rainfall_router
 from app.routers.elevation import router as elevation_router, dem_router
 from app.routers.flood import router as flood_router
+from app.routers.forecast import router as forecast_router
 
 app = FastAPI(title="MATSYA")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -25,5 +26,6 @@ app.include_router(elevation_router)
 app.include_router(rainfall_router)
 app.include_router(dem_router)
 app.include_router(flood_router)
+app.include_router(forecast_router)
 @app.get("/api/health")
 def health(): return {"status":"ok","version":"0.1.0","engine":"anuga-mock"}

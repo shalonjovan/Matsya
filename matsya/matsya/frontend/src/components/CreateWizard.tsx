@@ -99,6 +99,8 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const [search, setSearch] = useState("")
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [searching, setSearching] = useState(false)
+  const [forecastLoading, setForecastLoading] = useState(false)
+  const [forecastInfo, setForecastInfo] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [areaMode, setAreaMode] = useState<"search"|"rect"|"chennai">("search")
@@ -683,6 +685,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
               </div>
 
               {rainfallMode === "constant" ? (
+                <div className="space-y-2">
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs text-slate-300">
                     Rainfall rate (mm/hr)
@@ -700,6 +703,34 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                       className="mt-1 w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-white font-mono text-xs focus:border-cyan-500 focus-ring focus:outline-none"
                     />
                   </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={forecastLoading}
+                    onClick={async () => {
+                      setForecastLoading(true)
+                      setForecastInfo(null)
+                      try {
+                        const q = `minLon=${minLon}&minLat=${minLat}&maxLon=${maxLon}&maxLat=${maxLat}&hours=6`
+                        const r = await fetch(`/api/forecast/rain?${q}`)
+                        if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as any).detail || `HTTP ${r.status}`)
+                        const j = await r.json()
+                        setRate(String(j.rateMmHr))
+                        setDuration(String(j.durationHr))
+                        setForecastInfo(`${j.source} @ ${j.lat},${j.lon}: peak ${j.rateMmHr} mm/hr × ${j.durationHr}h${j.cached ? " (cached)" : ""}`)
+                      } catch (e: any) {
+                        setForecastInfo(`forecast unavailable (${e?.message ?? e}) — using constant inputs`)
+                      } finally {
+                        setForecastLoading(false)
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 rounded-lg text-xs font-semibold border border-slate-700 transition focus-ring"
+                  >
+                    {forecastLoading ? "Fetching forecast…" : "↻ Use live forecast"}
+                  </button>
+                  {forecastInfo && <span className="text-[11px] text-slate-400">{forecastInfo}</span>}
+                </div>
                 </div>
               ) : (
                 <div className="space-y-3">
