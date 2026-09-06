@@ -1221,6 +1221,36 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
     return snapshots, pngs, stats
 
 
+def _flood_duration_hr(rainfall) -> float:
+    """Storm duration in hours from constant or variable rainfall. Minimum epsilon."""
+    try:
+        if isinstance(rainfall, dict):
+            if rainfall.get("mode") == "variable":
+                return max(0.25, float(rainfall.get("totalTime", rainfall.get("durationHr", 6)) or 6))
+            return max(0.25, float(rainfall.get("durationHr", rainfall.get("totalTime", 1)) or 1))
+        mode = getattr(rainfall, "mode", "constant")
+        if mode == "variable":
+            return max(0.25, float(getattr(rainfall, "totalTime", 6) or 6))
+        return max(0.25, float(getattr(rainfall, "durationHr", 1) or 1))
+    except Exception:
+        return 1.0
+
+
+def _playback_steps(duration_hr: float) -> int:
+    """One frame per ~15 min, clamped to [6, 73] (73 = Timeline legacy max)."""
+    try:
+        return max(6, min(73, round(float(duration_hr) * 60.0 / 15.0)))
+    except Exception:
+        return 6
+
+
+def _playback_minutes_per_frame(duration_hr: float, steps: int) -> float:
+    try:
+        return float(duration_hr) * 60.0 / max(1, int(steps))
+    except Exception:
+        return 5.0
+
+
 def ensure_flood(sim, base_path=None, width=180, height=180):
     from pathlib import Path
     import json
@@ -1254,7 +1284,23 @@ def ensure_flood(sim, base_path=None, width=180, height=180):
     except Exception:
         _fill = 75.0
     # generate
-    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=3, initial_fill_pct=_fill)  # use 3 for test, 73 for prod
+    _dur = _flood_duration_hr(rainfall)
+    _steps = _playback_steps(_dur)
+    _mpf = _playback_minutes_per_frame(_dur, _steps)
+    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=_steps, initial_fill_pct=_fill)
+    stats = dict(stats or {})
+    stats["minutesPerFrame"] = _mpf
+    stats["floodVersion"] = 2
+    from app.services.simulation_store import store
+    base = store.base_path / f"{sim_id}" / "flood"
+    base.mkdir(parents=True, exist_ok=True)
+    for i, png in enumerate(pngs):
+        (base / f"{i}.png").write_bytes(png)
+    try:
+        import numpy as _np
+        _np.save(base / "snapshots.npy", _np.array(snaps, dtype="float32"))
+    except Exception:
+        pass
     from app.services.simulation_store import store
     base = store.base_path / f"{sim_id}" / "flood"
     base.mkdir(parents=True, exist_ok=True)

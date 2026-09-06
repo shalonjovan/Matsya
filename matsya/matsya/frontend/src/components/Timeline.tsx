@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react"
 import { Clock } from "lucide-react"
 
-export default function Timeline({ time, onChange, max = 72 }: { time: number; onChange: (n: number) => void; max?: number }) {
+export default function Timeline({ time, onChange, max = 72, minutesPerFrame = 5 }: { time: number; onChange: (n: number) => void; max?: number; minutesPerFrame?: number }) {
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(350)
 
@@ -34,8 +34,10 @@ export default function Timeline({ time, onChange, max = 72 }: { time: number; o
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [time, max, onChange])
 
-  const hours = Math.floor((time * 5) / 60)
-  const minutes = (time * 5) % 60
+  const mpf = minutesPerFrame && minutesPerFrame > 0 ? minutesPerFrame : 5
+  const totalMin = time * mpf
+  const hours = Math.floor(totalMin / 60)
+  const minutes = Math.floor(totalMin % 60)
   const timeFormatted = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
 
   return (
@@ -63,8 +65,8 @@ export default function Timeline({ time, onChange, max = 72 }: { time: number; o
           <button 
             type="button"
             onClick={() => onChange(Math.max(0, time - 1))} 
-            aria-label="Step backward 5 minutes"
-            title="Step backward 5 minutes (← Arrow)"
+            aria-label={`Step backward ${mpf} minutes`}
+            title={`Step backward ${mpf} minutes (← Arrow)`}
             className="px-3 py-2 min-h-[38px] bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-mono border border-slate-800 transition focus-ring"
           >
             -1
@@ -73,8 +75,8 @@ export default function Timeline({ time, onChange, max = 72 }: { time: number; o
           <button 
             type="button"
             onClick={() => onChange(Math.min(max, time + 1))} 
-            aria-label="Step forward 5 minutes"
-            title="Step forward 5 minutes (→ Arrow)"
+            aria-label={`Step forward ${mpf} minutes`}
+            title={`Step forward ${mpf} minutes (→ Arrow)`}
             className="px-3 py-2 min-h-[38px] bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg text-xs font-mono border border-slate-800 transition focus-ring"
           >
             +1
