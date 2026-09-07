@@ -127,8 +127,10 @@ def _edge_max_depth(edge, arrival_min, mpf):
         return 0.0
 
 
-def earliest_arrival(nodes, adj, src, dst, depart_min, mpf, threshold_cm, respect_flood):
-    """Dijkstra earliest arrival. Returns (etaMin, path node ids, edges) or None."""
+def earliest_arrival(nodes, adj, src, dst, depart_min, mpf, threshold_cm, respect_flood,
+                     full=False):
+    """Dijkstra earliest arrival. Returns (etaMin, path node ids, edges), None,
+    or (dist, prev) maps when full=True (dst ignored)."""
     try:
         _inf = float("inf")
         _dist = {src: float(depart_min)}
@@ -138,7 +140,7 @@ def earliest_arrival(nodes, adj, src, dst, depart_min, mpf, threshold_cm, respec
             _t, _u = heapq.heappop(_pq)
             if _t > _dist.get(_u, _inf):
                 continue
-            if _u == dst:
+            if not full and _u == dst:
                 break
             for _v, _e in (adj.get(_u) or []):
                 try:
@@ -151,6 +153,8 @@ def earliest_arrival(nodes, adj, src, dst, depart_min, mpf, threshold_cm, respec
                         heapq.heappush(_pq, (_nt, _v))
                 except Exception:
                     continue
+        if full:
+            return _dist, _prev
         if dst not in _prev and dst != src:
             return None
         _path, _edges, _cur = [dst], [], dst
@@ -162,6 +166,28 @@ def earliest_arrival(nodes, adj, src, dst, depart_min, mpf, threshold_cm, respec
         _path.reverse()
         _edges.reverse()
         return _dist[dst], _path, _edges
+    except Exception:
+        return None
+
+
+def reconstruct_route(nodes, dist, prev, src, dst, depart_min, mpf):
+    """Route summary from full-Dijkstra maps. Returns None when unreachable."""
+    try:
+        if dst != src and dst not in prev:
+            try:
+                if float(dist.get(dst, float("inf"))) == float("inf"):
+                    return None
+            except Exception:
+                return None
+        _path, _edges, _cur = [dst], [], dst
+        while _cur != src:
+            _pu, _pe = prev[_cur]
+            _path.append(_pu)
+            _edges.append(_pe)
+            _cur = _pu
+        _path.reverse()
+        _edges.reverse()
+        return _route_summary(nodes, (dist[dst], _path, _edges), mpf, 0.0, depart_min)
     except Exception:
         return None
 
@@ -180,38 +206,46 @@ def _route_summary(nodes, res, mpf, threshold_cm, depart_min):
             "maxDepthCm": round(_peak, 1)}
 
 
-def find_routes(sim, bbox, origin, destination, depart_min=0.0, threshold_cm=15.0):
-    """Returns dict with fastest/safest routes or honest failure reasons."""
+def find_routes(sim, bbox, origin, destination, depart_min=0.0, threshold_cm=15.0,
+                _prebuilt=None):
+    """Returns dict with fastest/safest routes or honest failure reasons.
+
+    _prebuilt = (series_by_id, nodes, adj, mpf): skips rebuild for batch probing.
+    """
     from app.services.road_segments import segment_series
     from app.services.snapshots import load_snapshots
-    try:
-        snaps, mpf, _bb = load_snapshots(sim)
-        _bbox = list(bbox) if bbox else list(_bb)
-    except Exception as e:
-        return {"fastest": None, "safest": None, "reason": f"snapshots unavailable: {e}"}
-    try:
-        rows, _meta = segment_series(sim, bbox=list(_bbox), thresholdCm=float(threshold_cm),
-                                     minPeakCm=0.0, limit=4000)
-    except Exception as e:
-        return {"fastest": None, "safest": None, "reason": f"segments unavailable: {e}"}
-    _by_id = {s["segmentId"]: s.get("series") or [] for s in rows}
-    _sid = sim.get("id") if isinstance(sim, dict) else getattr(sim, "id", "?")
-    _key = (_sid, len(rows))
-    _cached = _GRAPH_CACHE.get("key")
-    if _cached != _key:
-        nodes, adj = build_graph(sim, list(_bbox), _by_id)
-        _GRAPH_CACHE["key"] = _key
-        _GRAPH_CACHE["graph"] = (nodes, adj)
+    if _prebuilt is not None:
+        _by_id, nodes, adj, mpf = _prebuilt
+        _bbox = list(bbox)
     else:
-        nodes, adj = _GRAPH_CACHE["graph"]
-        # refresh series on cached topology (cheap, keeps depths current)
-        for _edges in adj.values():
-            for _i, (_nbr, _e) in enumerate(_edges):
-                try:
-                    if _e.get("segmentId") and _e["segmentId"] in _by_id:
-                        _e["series"] = _by_id[_e["segmentId"]]
-                except Exception:
-                    continue
+        try:
+            snaps, mpf, _bb = load_snapshots(sim)
+            _bbox = list(bbox) if bbox else list(_bb)
+        except Exception as e:
+            return {"fastest": None, "safest": None, "reason": f"snapshots unavailable: {e}"}
+        try:
+            rows, _meta = segment_series(sim, bbox=list(_bbox), thresholdCm=float(threshold_cm),
+                                         minPeakCm=0.0, limit=4000)
+        except Exception as e:
+            return {"fastest": None, "safest": None, "reason": f"segments unavailable: {e}"}
+        _by_id = {s["segmentId"]: s.get("series") or [] for s in rows}
+        _sid = sim.get("id") if isinstance(sim, dict) else getattr(sim, "id", "?")
+        _key = (_sid, len(rows))
+        _cached = _GRAPH_CACHE.get("key")
+        if _cached != _key:
+            nodes, adj = build_graph(sim, list(_bbox), _by_id)
+            _GRAPH_CACHE["key"] = _key
+            _GRAPH_CACHE["graph"] = (nodes, adj)
+        else:
+            nodes, adj = _GRAPH_CACHE["graph"]
+            # refresh series on cached topology (cheap, keeps depths current)
+            for _edges in adj.values():
+                for _i, (_nbr, _e) in enumerate(_edges):
+                    try:
+                        if _e.get("segmentId") and _e["segmentId"] in _by_id:
+                            _e["series"] = _by_id[_e["segmentId"]]
+                    except Exception:
+                        continue
     if not nodes:
         return {"fastest": None, "safest": None, "reason": "no routable roads in bbox"}
     try:

@@ -19,7 +19,7 @@ const BASEMAP_TILES: Record<string, { url: string, attr: string }> = {
   }
 }
 
-export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect }: any) {
+export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect, route }: any) {
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const layerRefs = useRef<any>({})
@@ -182,6 +182,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         layerRefs.current.waterbodyLayers = layerRefs.current.hydroWaterbodyLayers // alias for backward compat
         layerRefs.current.drainLayers = layerRefs.current.drainsGroup // alias
         layerRefs.current.infraGroup = (L as any).layerGroup()
+        layerRefs.current.routeGroup = (L as any).layerGroup().addTo(map) // Safe Route polylines
         // add groups to map initially based on visibility
         if (layers?.drainage?.visible ?? true) {
           layerRefs.current.drainsGroup.addTo(map)
@@ -420,6 +421,38 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       } catch {}
     }
   },[layers, time])
+
+  // Safe Route overlay — draws selected fastest/safest polylines + destination
+  useEffect(() => {
+    if (!mapRef.current) return
+    const L = (window as any).L
+    if (!L || !layerRefs.current.routeGroup) return
+    const group = layerRefs.current.routeGroup
+    try { group.clearLayers() } catch {}
+    if (!route) return
+    try {
+      const map = mapRef.current
+      const samePath = route.fastest && route.safest &&
+        JSON.stringify(route.fastest) === JSON.stringify(route.safest)
+      if (route.fastest && !samePath && route.fastest.length > 1) {
+        ;(L as any).polyline(route.fastest, { color: "#fbbf24", weight: 3, opacity: 0.85, dashArray: "8, 6" })
+          .bindTooltip("Fastest route", { sticky: true }).addTo(group)
+      }
+      if (route.safest && route.safest.length > 1) {
+        ;(L as any).polyline(route.safest, { color: "#22d3ee", weight: 4, opacity: 0.9 })
+          .bindTooltip("Safest route", { sticky: true }).addTo(group)
+      }
+      if (route.dest && isFinite(route.dest.lat) && isFinite(route.dest.lon)) {
+        ;(L as any).circleMarker([route.dest.lat, route.dest.lon], {
+          radius: 7, color: "#34d399", weight: 2, fillColor: "#34d399", fillOpacity: 0.6,
+        }).bindTooltip("Safe space", { sticky: true }).addTo(group)
+      }
+      try {
+        const drawn = group.getLayers()
+        if (drawn.length) map.fitBounds(group.getBounds().pad(0.2))
+      } catch {}
+    } catch {}
+  }, [route])
 
   // Handle basemap tile layer switching
   useEffect(() => {

@@ -41,3 +41,13 @@ Returns `{"fastest": route, "safest": route|null, "reason": null|string}` where 
 
 ### `POST /api/v1/nowcasts` (201)
 Radar nowcast in, running sim out. Body: `{name, bbox, issuedAt, cells: [{amount, unit, polygon}...], baseRateMmHr = 0, durationHr = 1}`. Cells follow zone rules (cap 12 — extras reported, never silently applied). Returns `{simId, acceptedCells, droppedCells, totalRainMm}`. Poll `GET /api/simulations/{simId}` until `status == "Completed"`, then query the feeds above.
+
+### `POST /api/v1/safe-spaces`
+Nearest reachable safe spaces + fastest routes. Body:
+
+```json
+{"simId": "<id>", "origin": {"lat": 13.10, "lon": 80.19},
+ "departAtMin": 0, "thresholdCm": 15.0, "limit": 3}
+```
+
+Safe space = dry (`peakCm` below threshold all steps, never floods) + high DEM elevation + outside lake masks + reachable by verified safest route. Candidates: dry road segments first, then dry off-road cells near roads; ranked by routed ETA. Returns `{spaces: [{rank, kind: road|ground, name, lat, lon, elevationM, peakCm, route: {etaMin, maxDepthCm, path, segmentIds}}], reason, originSnapped}`. Origin beyond the 200 m snap tolerance falls back to the nearest mapped road within 2 km with `originSnapped: {lat, lon, distanceM}` disclosed; beyond 2 km → 422. Powers the sidebar Safe Route tab.
