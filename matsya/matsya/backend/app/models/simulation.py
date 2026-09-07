@@ -64,6 +64,18 @@ class Rainfall(BaseModel):
     unit: str | None = "rate"  # "rate" | "total"
     points: list[dict] | None = None
     curve: dict | None = None
+    zones: list[dict] | None = None
+
+    @field_validator("zones", mode="before")
+    @classmethod
+    def check_zones(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, list):
+            raise ValueError("zones must be a list")
+        if len(v) > 12:
+            raise ValueError("at most 12 rainfall zones")
+        return v
 
     @classmethod
     def model_validate(cls, obj, *args, **kwargs):

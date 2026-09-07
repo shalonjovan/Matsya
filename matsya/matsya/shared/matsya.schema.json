@@ -1,446 +1,482 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "MatsyaSimulation v1.1 (hydro)",
-  "type": "object",
-  "required": [
-    "name",
-    "area",
-    "rainfall"
-  ],
-  "properties": {
-    "id": {
-      "type": "string",
-      "format": "uuid",
-      "description": "Auto-generated UUID"
+ "$schema": "http://json-schema.org/draft-07/schema#",
+ "title": "MatsyaSimulation v1.1 (hydro)",
+ "type": "object",
+ "required": [
+  "name",
+  "area",
+  "rainfall"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "format": "uuid",
+   "description": "Auto-generated UUID"
+  },
+  "name": {
+   "type": "string",
+   "description": "Simulation name"
+  },
+  "area": {
+   "type": "object",
+   "required": [
+    "bbox"
+   ],
+   "properties": {
+    "bbox": {
+     "type": "array",
+     "items": {
+      "type": "number"
+     },
+     "minItems": 4,
+     "maxItems": 4,
+     "description": "[minLon, minLat, maxLon, maxLat] with minLon < maxLon and minLat < maxLat",
+     "examples": [
+      [
+       80.15,
+       13.08,
+       80.2,
+       13.13
+      ]
+     ]
     },
-    "name": {
-      "type": "string",
-      "description": "Simulation name"
+    "crs": {
+     "type": "string",
+     "default": "EPSG:4326"
     },
-    "area": {
+    "polygon": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "Optional GeoJSON polygon",
+     "examples": [
+      [
+       {
+        "type": "Polygon",
+        "coordinates": [
+         [
+          [
+           80.15,
+           13.08
+          ],
+          [
+           80.2,
+           13.08
+          ],
+          [
+           80.2,
+           13.13
+          ],
+          [
+           80.15,
+           13.13
+          ],
+          [
+           80.15,
+           13.08
+          ]
+         ]
+        ]
+       }
+      ]
+     ]
+    }
+   }
+  },
+  "terrain": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "properties": {
+    "demUri": {
+     "type": [
+      "string",
+      "null"
+     ]
+    },
+    "res": {
+     "type": [
+      "number",
+      "null"
+     ]
+    }
+   }
+  },
+  "rainfall": {
+   "type": "object",
+   "properties": {
+    "rateMmHr": {
+     "type": [
+      "number",
+      "null"
+     ],
+     "description": "Legacy constant rate"
+    },
+    "durationHr": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "mode": {
+     "type": "string",
+     "enum": [
+      "constant",
+      "variable"
+     ],
+     "default": "constant"
+    },
+    "constantRate": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "totalTime": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "maxRain": {
+     "type": [
+      "number",
+      "null"
+     ]
+    },
+    "unit": {
+     "type": "string",
+     "enum": [
+      "rate",
+      "total"
+     ],
+     "default": "rate"
+    },
+    "points": {
+     "type": [
+      "array",
+      "null"
+     ],
+     "items": {
+      "type": "object",
+      "properties": {
+       "time": {
+        "type": "number"
+       },
+       "amount": {
+        "type": "number"
+       }
+      },
+      "required": [
+       "time",
+       "amount"
+      ]
+     }
+    },
+    "curve": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "properties": {
+      "values": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       }
+      },
+      "method": {
+       "type": "string"
+      },
+      "unit": {
+       "type": "string"
+      }
+     }
+    },
+    "zones": {
+     "type": [
+      "array",
+      "null"
+     ],
+     "maxItems": 12,
+     "items": {
       "type": "object",
       "required": [
-        "bbox"
+       "id",
+       "amount",
+       "unit",
+       "polygon"
       ],
       "properties": {
-        "bbox": {
-          "type": "array",
-          "items": {
-            "type": "number"
-          },
-          "minItems": 4,
-          "maxItems": 4,
-          "description": "[minLon, minLat, maxLon, maxLat] with minLon < maxLon and minLat < maxLat",
-          "examples": [
-            [
-              80.15,
-              13.08,
-              80.2,
-              13.13
-            ]
-          ]
-        },
-        "crs": {
-          "type": "string",
-          "default": "EPSG:4326"
-        },
-        "polygon": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "description": "Optional GeoJSON polygon",
-          "examples": [
-            [
-              {
-                "type": "Polygon",
-                "coordinates": [
-                  [
-                    [
-                      80.15,
-                      13.08
-                    ],
-                    [
-                      80.2,
-                      13.08
-                    ],
-                    [
-                      80.2,
-                      13.13
-                    ],
-                    [
-                      80.15,
-                      13.13
-                    ],
-                    [
-                      80.15,
-                      13.08
-                    ]
-                  ]
-                ]
-              }
-            ]
-          ]
-        }
+       "id": {
+        "type": "string"
+       },
+       "amount": {
+        "type": "number",
+        "minimum": 0
+       },
+       "unit": {
+        "type": "string",
+        "enum": [
+         "rate",
+         "total"
+        ]
+       },
+       "polygon": {
+        "type": "object"
+       }
       }
+     },
+     "description": "Spatial rainfall zones (absolute amounts, last-painted wins). Absent = uniform base rate."
+    }
+   }
+  },
+  "drainage": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "properties": {
+    "uri": {
+     "type": [
+      "string",
+      "null"
+     ]
     },
-    "terrain": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "properties": {
-        "demUri": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "res": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      }
+    "conduitCount": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   }
+  },
+  "rivers": {
+   "type": [
+    "object",
+    "null",
+    "array"
+   ]
+  },
+  "canals": {
+   "type": [
+    "object",
+    "null",
+    "array"
+   ]
+  },
+  "waterBodies": {
+   "type": [
+    "object",
+    "null",
+    "array"
+   ]
+  },
+  "roads": {
+   "type": [
+    "object",
+    "null",
+    "array"
+   ]
+  },
+  "buildings": {
+   "type": [
+    "object",
+    "null",
+    "array"
+   ]
+  },
+  "landCover": {
+   "type": [
+    "object",
+    "null"
+   ]
+  },
+  "boundaries": {
+   "type": [
+    "object",
+    "null"
+   ]
+  },
+  "parameters": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "properties": {
+    "cfl": {
+     "type": [
+      "number",
+      "null"
+     ]
     },
-    "rainfall": {
-      "type": "object",
-      "properties": {
-        "rateMmHr": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "description": "Legacy constant rate"
-        },
-        "durationHr": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "mode": {
-          "type": "string",
-          "enum": [
-            "constant",
-            "variable"
-          ],
-          "default": "constant"
-        },
-        "constantRate": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "totalTime": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "maxRain": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "unit": {
-          "type": "string",
-          "enum": [
-            "rate",
-            "total"
-          ],
-          "default": "rate"
-        },
-        "points": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "object",
-            "properties": {
-              "time": {
-                "type": "number"
-              },
-              "amount": {
-                "type": "number"
-              }
-            },
-            "required": [
-              "time",
-              "amount"
-            ]
-          }
-        },
-        "curve": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "properties": {
-            "values": {
-              "type": "array",
-              "items": {
-                "type": "number"
-              }
-            },
-            "method": {
-              "type": "string"
-            },
-            "unit": {
-              "type": "string"
-            }
-          }
-        }
-      }
+    "dt": {
+     "type": [
+      "number",
+      "null"
+     ]
     },
-    "drainage": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "properties": {
-        "uri": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "conduitCount": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      }
+    "initialFillPct": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 100,
+     "default": 75.0,
+     "description": "Lake initial storage as % of depth-to-crest at sim start"
     },
-    "rivers": {
-      "type": [
-        "object",
-        "null",
-        "array"
-      ]
+    "theta": {
+     "type": [
+      "number",
+      "null"
+     ]
+    }
+   }
+  },
+  "results": {
+   "type": [
+    "object",
+    "null"
+   ]
+  },
+  "elevation": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "properties": {
+    "elevationUri": {
+     "type": [
+      "string",
+      "null"
+     ]
     },
-    "canals": {
-      "type": [
-        "object",
-        "null",
-        "array"
-      ]
+    "stats": {
+     "type": [
+      "object",
+      "null"
+     ]
     },
-    "waterBodies": {
-      "type": [
-        "object",
-        "null",
-        "array"
-      ]
+    "width": {
+     "type": [
+      "integer",
+      "null"
+     ]
     },
-    "roads": {
-      "type": [
-        "object",
-        "null",
-        "array"
-      ]
+    "height": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   }
+  },
+  "flood": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "properties": {
+    "floodUri": {
+     "type": [
+      "string",
+      "null"
+     ]
     },
-    "buildings": {
-      "type": [
-        "object",
-        "null",
-        "array"
-      ]
+    "stats": {
+     "type": [
+      "object",
+      "null"
+     ]
     },
-    "landCover": {
-      "type": [
-        "object",
-        "null"
-      ]
+    "width": {
+     "type": [
+      "integer",
+      "null"
+     ]
     },
-    "boundaries": {
-      "type": [
-        "object",
-        "null"
-      ]
+    "height": {
+     "type": [
+      "integer",
+      "null"
+     ]
     },
-    "parameters": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "properties": {
-        "cfl": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "dt": {
-          "type": [
-            "number",
-            "null"
-          ]
-        },
-        "initialFillPct": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 100,
-          "default": 75.0,
-          "description": "Lake initial storage as % of depth-to-crest at sim start"
-        },
-        "theta": {
-          "type": [
-            "number",
-            "null"
-          ]
-        }
-      }
+    "steps": {
+     "type": [
+      "integer",
+      "null"
+     ]
+    }
+   }
+  },
+  "metadata": {
+   "type": "object",
+   "properties": {
+    "created": {
+     "type": "string",
+     "format": "date-time"
     },
-    "results": {
-      "type": [
-        "object",
-        "null"
-      ]
-    },
-    "elevation": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "properties": {
-        "elevationUri": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "stats": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "width": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "height": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      }
-    },
-    "flood": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "properties": {
-        "floodUri": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "stats": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "width": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "height": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        },
-        "steps": {
-          "type": [
-            "integer",
-            "null"
-          ]
-        }
-      }
-    },
-    "metadata": {
-      "type": "object",
-      "properties": {
-        "created": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "updated": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "status": {
-          "$ref": "#/definitions/StatusEnum"
-        }
-      }
+    "updated": {
+     "type": "string",
+     "format": "date-time"
     },
     "status": {
-      "$ref": "#/definitions/StatusEnum",
-      "default": "Ready"
-    },
-    "hydro": {
-      "type": [
-        "object",
-        "null"
-      ],
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": false
-        },
-        "version": {
-          "type": "string",
-          "default": "1.1"
-        },
-        "drainToWaterbody": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "description": "drain id -> wb:xxx / river:xxx / sea"
-        },
-        "waterbodyStates": {
-          "type": [
-            "object",
-            "null"
-          ]
-        },
-        "graphStats": {
-          "type": [
-            "object",
-            "null"
-          ]
-        }
-      }
+     "$ref": "#/definitions/StatusEnum"
     }
+   }
   },
-  "definitions": {
-    "StatusEnum": {
-      "type": "string",
-      "enum": [
-        "Ready",
-        "Running",
-        "Completed",
-        "Incomplete",
-        "Error",
-        "Live",
-        "Offline"
-      ]
+  "status": {
+   "$ref": "#/definitions/StatusEnum",
+   "default": "Ready"
+  },
+  "hydro": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "properties": {
+    "enabled": {
+     "type": "boolean",
+     "default": false
+    },
+    "version": {
+     "type": "string",
+     "default": "1.1"
+    },
+    "drainToWaterbody": {
+     "type": [
+      "object",
+      "null"
+     ],
+     "description": "drain id -> wb:xxx / river:xxx / sea"
+    },
+    "waterbodyStates": {
+     "type": [
+      "object",
+      "null"
+     ]
+    },
+    "graphStats": {
+     "type": [
+      "object",
+      "null"
+     ]
     }
+   }
   }
+ },
+ "definitions": {
+  "StatusEnum": {
+   "type": "string",
+   "enum": [
+    "Ready",
+    "Running",
+    "Completed",
+    "Incomplete",
+    "Error",
+    "Live",
+    "Offline"
+   ]
+  }
+ }
 }
