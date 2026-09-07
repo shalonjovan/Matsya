@@ -1292,6 +1292,8 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "swmmCoupled": bool(swmm_coupled),
         "swmmFloodedNodes": int(len((swmm_info.get("node_flood") or {}))),
         "swmmFloodVolumeM3": round(float(sum(v.get("volume_m3", 0) for v in (swmm_info.get("node_flood") or {}).values())), 1),
+        "swmmNodes": [{"id": str(_nid), "floodVolumeM3": round(float((_nv or {}).get("volume_m3", 0) or 0.0), 1)}
+                      for _nid, _nv in sorted((swmm_info.get("node_flood") or {}).items(), key=lambda kv: str(kv[0]))],
         "spillVolumeM3": round(float(spilled_total), 1),
         "overtoppedLakes": int(len(overtopped)),
         "riverSpillVolumeM3": round(float(river_spill_total), 1),
