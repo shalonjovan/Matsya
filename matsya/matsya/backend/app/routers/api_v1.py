@@ -139,3 +139,42 @@ def alerts(simId: str, withinMin: float = 30.0, thresholdCm: float = 15.0):
         "surchargedNodes": surcharged[:500],
         "truncated": len(flooded) > 500 or len(upcoming) > 500 or len(surcharged) > 500,
     })
+
+
+@router.post("/routes/safe")
+def safe_route(body: dict):
+    _o = (body or {}).get("origin") or {}
+    _d = (body or {}).get("destination") or {}
+    if not isinstance(_o, dict) or not isinstance(_d, dict):
+        raise HTTPException(422, "origin/destination as {lat, lon} are required")
+    if any(_o.get(k) is None for k in ("lat", "lon")) or any(_d.get(k) is None for k in ("lat", "lon")):
+        raise HTTPException(422, "origin/destination as {lat, lon} are required")
+    try:
+        _olat, _olon = float(_o.get("lat") or 0), float(_o.get("lon") or 0)
+        _dlat, _dlon = float(_d.get("lat") or 0), float(_d.get("lon") or 0)
+    except Exception:
+        raise HTTPException(422, "origin/destination as {lat, lon} are required")
+    try:
+        _sim_id = str((body or {}).get("simId", ""))
+    except Exception:
+        _sim_id = ""
+    if not _sim_id:
+        raise HTTPException(422, "simId is required")
+    try:
+        _depart = float((body or {}).get("departAtMin", 0.0) or 0.0)
+        _thresh = float((body or {}).get("thresholdCm", 15.0) or 15.0)
+    except Exception:
+        raise HTTPException(422, "departAtMin/thresholdCm must be numbers")
+    sim = _get_sim(_sim_id)
+    try:
+        _bb = sim.get("area", {}).get("bbox") if isinstance(sim, dict) else sim.area.bbox
+    except Exception:
+        _bb = [80.15, 13.08, 80.20, 13.13]
+    from app.services.safe_routes import find_routes
+    res = find_routes(sim, list(_bb),
+                      {"lat": _olat, "lon": _olon}, {"lat": _dlat, "lon": _dlon},
+                      depart_min=_depart, threshold_cm=_thresh)
+    if res.get("reason") in ("origin outside routable network (200m)",
+                             "destination outside routable network (200m)"):
+        raise HTTPException(422, res["reason"])
+    return v1_envelope(res)

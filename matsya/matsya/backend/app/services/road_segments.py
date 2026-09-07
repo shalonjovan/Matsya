@@ -47,7 +47,20 @@ def build_segments(bbox):
     gdf = _roads_gdf()
     if gdf is None or not len(gdf):
         return [], False
+    # clip margin (1%) — prefilter roads BEFORE segmenting so the segment
+    # budget is spent inside the bbox, not on citywide file order
+    _mlon = (maxLon - minLon) * 0.01
+    _mlat = (maxLat - minLat) * 0.01
+
+    def _inbox(pt):
+        try:
+            return minLon - _mlon <= float(pt[0]) <= maxLon + _mlon and \
+                minLat - _mlat <= float(pt[1]) <= maxLat + _mlat
+        except Exception:
+            return False
+
     segs = []
+    truncated = False
     try:
         for _, row in gdf.iterrows():
             try:
@@ -55,12 +68,25 @@ def build_segments(bbox):
                 if _g is None or _g.is_empty:
                     continue
                 _lines = list(_g.geoms) if _g.geom_type == "MultiLineString" else [_g]
+                _hit = False
+                _parts = []
+                for _ln in _lines:
+                    try:
+                        _cs = [(float(p[0]), float(p[1])) for p in list(_ln.coords)]
+                    except Exception:
+                        continue
+                    if not _cs:
+                        continue
+                    _parts.append(_cs)
+                    if any(_inbox(_p) for _p in _cs):
+                        _hit = True
+                if not _hit:
+                    continue
                 _rid = str(row.get("road_id", "") if hasattr(row, "get") else "") or "road"
                 _rnm = str(row.get("road_name", "") if hasattr(row, "get") else "").strip() or _rid
                 _rlc = str(row.get("locality", "") if hasattr(row, "get") else "").strip()
                 _idx = 0
-                for _ln in _lines:
-                    _cs = [(float(p[0]), float(p[1])) for p in list(_ln.coords)]
+                for _cs in _parts:
                     # walk the line, cutting every SEGMENT_M
                     _run = [_cs[0]]
                     _acc = 0.0
@@ -68,33 +94,32 @@ def build_segments(bbox):
                         _d = _haversine_m(_a[0], _a[1], _b[0], _b[1])
                         if _acc + _d >= SEGMENT_M and len(_run) > 1:
                             _run.append(_b)
-                            segs.append(_finish(_rid, _rnm, _rlc, _run, _idx))
-                            _idx += 1
+                            if any(_inbox(_p) for _p in _run):
+                                segs.append(_finish(_rid, _rnm, _rlc, _run, _idx))
+                                _idx += 1
                             _run = [_b]
                             _acc = 0.0
                         else:
                             _run.append(_b)
                             _acc += _d
-                    if len(_run) > 1:
+                    if len(_run) > 1 and any(_inbox(_p) for _p in _run):
                         segs.append(_finish(_rid, _rnm, _rlc, _run, _idx))
                         _idx += 1
                     if len(segs) >= MAX_SEGMENTS:
+                        truncated = True
                         break
-                if len(segs) >= MAX_SEGMENTS:
+                if truncated:
                     break
             except Exception:
                 continue
     except Exception:
         pass
-    # clip to bbox (any vertex inside, 1% margin)
-    _mlon = (maxLon - minLon) * 0.01
-    _mlat = (maxLat - minLat) * 0.01
-    kept = [s for s in segs
-            if any(minLon - _mlon <= _x <= maxLon + _mlon and minLat - _mlat <= _y <= maxLat + _mlat
-                   for _x, _y in s["poly"])]
-    for s in kept:
-        del s["poly"]
-    return kept, len(segs) > len(kept)
+    for s in segs:
+        try:
+            del s["poly"]
+        except Exception:
+            pass
+    return segs, truncated
 
 
 def _finish(rid, rnm, rlc, run, idx):
