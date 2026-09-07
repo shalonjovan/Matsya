@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent } from "@testing-library/react"
-import ZoneRain, { buildZone } from "../components/ZoneRain"
+import ZoneRain, { buildZone, polygonIntersectsBbox } from "../components/ZoneRain"
 import type { RainfallZone } from "../types/simulation"
 
 const west: RainfallZone = {
@@ -47,5 +47,21 @@ describe("ZoneRain", () => {
     const full = Array.from({ length: 12 }, (_, i) => ({ ...west, id: `z${i + 1}` }))
     render(<ZoneRain zones={full} onChange={() => {}} bbox={[80.15, 13.08, 80.20, 13.13]} />)
     expect(screen.getByText(/maximum 12 zones/i)).toBeInTheDocument()
+  })
+})
+
+describe("polygonIntersectsBbox", () => {
+  const BBOX: [number, number, number, number] = [80.15, 13.08, 80.20, 13.13]
+  const inside = { type: "Polygon", coordinates: [[[80.16, 13.09], [80.17, 13.09], [80.17, 13.10], [80.16, 13.10], [80.16, 13.09]]] }
+  const outside = { type: "Polygon", coordinates: [[[80.30, 13.30], [80.31, 13.30], [80.31, 13.31], [80.30, 13.31], [80.30, 13.30]]] }
+  const straddle = { type: "Polygon", coordinates: [[[80.19, 13.09], [80.25, 13.09], [80.25, 13.10], [80.19, 13.10], [80.19, 13.09]]] }
+  const engulf = { type: "Polygon", coordinates: [[[80.10, 13.00], [80.30, 13.00], [80.30, 13.20], [80.10, 13.20], [80.10, 13.00]]] }
+
+  it("classifies inside/straddle/engulf as intersecting, outside as not", () => {
+    expect(polygonIntersectsBbox(inside, BBOX)).toBe(true)
+    expect(polygonIntersectsBbox(straddle, BBOX)).toBe(true)
+    expect(polygonIntersectsBbox(engulf, BBOX)).toBe(true)
+    expect(polygonIntersectsBbox(outside, BBOX)).toBe(false)
+    expect(polygonIntersectsBbox(null, BBOX)).toBe(false)
   })
 })

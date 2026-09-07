@@ -25,6 +25,53 @@ export function buildZone(
   }
 }
 
+export function polygonIntersectsBbox(
+  polygon: any,
+  bbox: [number, number, number, number]
+): boolean {
+  try {
+    const ring = polygon?.coordinates?.[0]
+    if (!Array.isArray(ring) || ring.length < 4) return false
+    const [minLon, minLat, maxLon, maxLat] = bbox
+    if (!(minLon < maxLon && minLat < maxLat)) return false
+    const inBox = ([lon, lat]: any) => lon >= minLon && lon <= maxLon && lat >= minLat && lat <= maxLat
+    // any polygon vertex inside the bbox
+    for (const pt of ring) {
+      if (inBox(pt)) return true
+    }
+    // any bbox corner inside the polygon (engulf case) — ray cast
+    const corners: [number, number][] = [[minLon, minLat], [maxLon, minLat], [maxLon, maxLat], [minLon, maxLat]]
+    const inPoly = ([x, y]: [number, number]) => {
+      let inside = false
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j]
+        if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside
+      }
+      return inside
+    }
+    for (const c of corners) {
+      if (inPoly(c)) return true
+    }
+    // edge crossings (straddle case) — orientation test
+    const orient = (a: any, b: any, c: any) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+    const crosses = (p1: any, p2: any, p3: any, p4: any) => {
+      const d1 = orient(p3, p4, p1), d2 = orient(p3, p4, p2), d3 = orient(p1, p2, p3), d4 = orient(p1, p2, p4)
+      return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))
+    }
+    const edges: [[number, number], [number, number]][] = [
+      [corners[0], corners[1]], [corners[1], corners[2]], [corners[2], corners[3]], [corners[3], corners[0]],
+    ]
+    for (let i = 0; i < ring.length - 1; i++) {
+      for (const [e1, e2] of edges) {
+        if (crosses(ring[i], ring[i + 1], e1, e2)) return true
+      }
+    }
+    return false
+  } catch {
+    return false
+  }
+}
+
 interface Props {
   zones: RainfallZone[]
   onChange: (zones: RainfallZone[]) => void
@@ -69,6 +116,12 @@ export default function ZoneRain({ zones, onChange, bbox }: Props) {
       const [minLon, minLat, maxLon, maxLat] = bbox
       const map = L.map(mapRef.current).fitBounds([[minLat, minLon], [maxLat, maxLon]])
       L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OSM" }).addTo(map)
+      // simulation domain marking — zones only take effect inside this box
+      try {
+        ;(L as any).rectangle([[minLat, minLon], [maxLat, maxLon]], {
+          color: "#06b6d4", weight: 2, dashArray: "6, 6", fill: false, interactive: false,
+        }).addTo(map).bindTooltip("Simulation domain", { sticky: true })
+      } catch {}
       const drawn = new (L as any).FeatureGroup()
       map.addLayer(drawn)
       drawLayerRef.current = drawn
@@ -92,6 +145,11 @@ export default function ZoneRain({ zones, onChange, bbox }: Props) {
         if (e.layerType !== "polygon") return
         try {
           const gj = e.layer.toGeoJSON().geometry
+          if (!polygonIntersectsBbox(gj, bbox)) {
+            setDrawError("Region is outside the simulation domain (cyan box) — draw inside it.")
+            drawn.clearLayers()
+            return
+          }
           const amt = parseFloat((document.getElementById("zone-amount") as HTMLInputElement)?.value ?? "")
           const unt = ((document.getElementById("zone-unit") as HTMLSelectElement)?.value ?? "rate") as "rate" | "total"
           const z = buildZone(amt, unt, gj, zonesRef.current ?? [])
@@ -132,7 +190,7 @@ export default function ZoneRain({ zones, onChange, bbox }: Props) {
           Spatial rain zones (optional)
         </h5>
         <p className="text-[11px] text-slate-400 mt-0.5">
-          Amount → draw region → repeat. Each zone overrides the base rate inside its area; last-drawn wins overlaps. Base rate applies everywhere else.
+          Amount → draw region → repeat. Draw inside the cyan domain box — regions outside it are rejected. Each zone overrides the base rate inside its area; last-drawn wins overlaps. Base rate applies everywhere else.
         </p>
       </div>
 
