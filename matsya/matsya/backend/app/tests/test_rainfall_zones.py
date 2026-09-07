@@ -79,3 +79,28 @@ def test_point_query_reports_rainfall_zone():
                         "zones": [{"id": "w", "amount": 200, "unit": "rate", "polygon": poly_w}]}}
     assert point_query(13.105, 80.16, 0, sim)["rainfallZone"] == "w"
     assert point_query(13.105, 80.19, 0, sim)["rainfallZone"] is None
+
+def test_variable_zone_parses_and_integrates():
+    import numpy as np
+    from app.services.flood import generate_flood
+    poly_w = {"type": "Polygon", "coordinates": [[[80.15, 13.08], [80.175, 13.08], [80.175, 13.13], [80.15, 13.13], [80.15, 13.08]]]}
+    rf = {"rateMmHr": 10, "durationHr": 1, "zones": [
+        {"id": "wb", "mode": "variable", "unit": "rate", "totalTime": 1, "maxRain": 200,
+         "points": [{"time": 0, "amount": 0}, {"time": 0.5, "amount": 200}, {"time": 1, "amount": 0}],
+         "polygon": poly_w}]}
+    kw = dict(width=20, height=20, steps=6)
+    snaps, _, st = generate_flood([80.15, 13.08, 80.20, 13.13], rf, **kw)
+    base, _, _ = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 10, "durationHr": 1}, **kw)
+    last, lastb = np.asarray(snaps[-1]), np.asarray(base[-1])
+    assert last[:, :10].mean() > lastb[:, :10].mean() * 2.0
+    assert st["mass_error"] < 0.25
+    z = next(z for z in st["zones"] if z["id"] == "wb")
+    assert z["mode"] == "variable" and z["peakMmHr"] > z["rateMmHr"] > 0
+
+def test_variable_zone_invalid_points_dropped():
+    from app.services.rainfall_zones import parse_zones
+    poly = {"type": "Polygon", "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}
+    rf = {"rateMmHr": 10, "durationHr": 1, "zones": [
+        {"id": "bad", "mode": "variable", "points": [{"time": 0, "amount": 5}], "polygon": poly}]}
+    zones, dropped = parse_zones(rf)
+    assert zones == [] and dropped == ["bad"]

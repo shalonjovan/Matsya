@@ -66,6 +66,21 @@ def _zone_regimes(rainfall, base_series):
         _T = 1.0
     out = []
     for zi, z in enumerate(zones):
+        if (z or {}).get("mode") == "variable":
+            # time-varying regime from the zone hyetograph on its own clock
+            try:
+                from app.services.rainfall_curve import interpolate
+                _Tv = max(0.25, float(z.get("totalTime") or 1.0))
+                _res = interpolate(z.get("points", []), totalTime=_Tv,
+                                   maxRain=float(z.get("maxRain") or 0),
+                                   unit=str(z.get("unit", "rate") or "rate"),
+                                   steps=max(12, int(_Tv * 12)))
+                _vals = [float(v) for v in list(_res["values"])]
+                _den = max(1, len(_vals) - 1)
+                out.append(("RAIN_Z%d" % zi, [(i * _Tv / _den, v) for i, v in enumerate(_vals)]))
+                continue
+            except Exception:
+                pass
         try:
             amt = float(z.get("amount", 0.0))
             zr = amt if str(z.get("unit", "rate")) == "rate" else amt / _T

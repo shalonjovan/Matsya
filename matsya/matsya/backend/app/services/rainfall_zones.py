@@ -16,13 +16,43 @@ def parse_zones(rainfall):
     for z in raw[:MAX_ZONES * 2]:
         try:
             zid = str(z.get("id", "z"))
-            amount = float(z.get("amount"))
-            unit = z.get("unit", "rate")
             poly = z.get("polygon") or {}
-            if not (amount >= 0 and unit in ("rate", "total")
-                    and poly.get("type") == "Polygon"
+            if not (poly.get("type") == "Polygon"
                     and isinstance(poly.get("coordinates"), list) and poly["coordinates"]
                     and isinstance(poly["coordinates"][0], list) and len(poly["coordinates"][0]) >= 4):
+                dropped.append(zid)
+                continue
+            if str(z.get("mode", "constant")) == "variable":
+                # variable hyetograph zone (mirrors top-level variable rainfall)
+                pts = z.get("points") or []
+                try:
+                    totalTime = float(z.get("totalTime", 0) or 0)
+                    maxRain = float(z.get("maxRain", 0) or 0)
+                except Exception:
+                    totalTime, maxRain = 0.0, 0.0
+                unit = z.get("unit", "rate")
+                ok = (totalTime > 0 and maxRain >= 0 and unit in ("rate", "total")
+                      and isinstance(pts, list) and len(pts) >= 2)
+                if ok:
+                    for _p in pts:
+                        try:
+                            _t = float((_p or {}).get("time", 0) or 0)
+                            _a = float((_p or {}).get("amount", 0) or 0)
+                            assert _t >= 0 and _a >= 0
+                        except Exception:
+                            ok = False
+                            break
+                if not ok:
+                    dropped.append(zid)
+                    continue
+                zones.append({"id": zid, "mode": "variable", "unit": unit,
+                              "totalTime": totalTime, "maxRain": maxRain,
+                              "points": [{"time": float(p["time"]), "amount": float(p["amount"])} for p in pts],
+                              "polygon": poly})
+                continue
+            amount = float(z.get("amount"))
+            unit = z.get("unit", "rate")
+            if not (amount >= 0 and unit in ("rate", "total")):
                 dropped.append(zid)
                 continue
             zones.append({"id": zid, "amount": amount, "unit": unit, "polygon": poly})
@@ -38,6 +68,32 @@ def _grid_transform(bbox, width, height):
     from rasterio.transform import from_bounds
     minLon, minLat, maxLon, maxLat = [float(x) for x in bbox]
     return from_bounds(minLon, minLat, maxLon, maxLat, width, height)
+
+
+def zone_step_rates(zone, steps, duration_hr):
+    """mm/hr per flood step. Constant: flat (total spread over duration_hr).
+    Variable: hyetograph interpolated over the zone's own totalTime, padded
+    with the last value / truncated to steps (mirrors top-level behavior)."""
+    n = max(1, int(steps or 1))
+    if (zone or {}).get("mode") == "variable":
+        from app.services.rainfall_curve import interpolate
+        try:
+            res = interpolate(zone.get("points", []), totalTime=float(zone.get("totalTime") or 1),
+                              maxRain=float(zone.get("maxRain") or 0), unit=str(zone.get("unit", "rate") or "rate"),
+                              steps=n)
+            vals = [float(v) for v in list(res["values"])[:n]]
+            while len(vals) < n:
+                vals.append(vals[-1] if vals else 0.0)
+            return vals
+        except Exception:
+            return [0.0] * n
+    try:
+        dur = max(1e-9, float(duration_hr or 1.0))
+        amt = float((zone or {}).get("amount", 0.0) or 0.0)
+        r = amt if str((zone or {}).get("unit", "rate")) == "rate" else amt / dur
+    except Exception:
+        r = 0.0
+    return [r] * n
 
 
 def zone_masks(zones, bbox, width, height):

@@ -18,3 +18,17 @@ def test_zoned_subcatchment_gets_zone_gage(tmp_path):
     p = build_inp(drains, rf, [80.15, 13.08, 80.20, 13.13], str(tmp_path / "z1.inp"))
     text = open(p).read()
     assert "RGZ0" in text and "S0  RGZ0" in text and "S1  RG1" in text
+
+def test_variable_zone_regime_is_time_varying(tmp_path):
+    from app.services.engine.swmm_inp import build_inp
+    poly = {"type": "Polygon", "coordinates": [[[80.15, 13.08], [80.175, 13.08], [80.175, 13.13], [80.15, 13.13], [80.15, 13.08]]]}
+    drains = [{"id": "DW", "length_m": 100.0, "slope": 0.01, "z0": 10.0, "z1": 9.0,
+               "x0": 80.16, "y0": 13.10, "x1": 80.161, "y1": 13.101}]
+    rf = {"rateMmHr": 10, "durationHr": 1, "zones": [
+        {"id": "wb", "mode": "variable", "unit": "rate", "totalTime": 1, "maxRain": 200,
+         "points": [{"time": 0, "amount": 0}, {"time": 0.5, "amount": 200}, {"time": 1, "amount": 0}],
+         "polygon": poly}]}
+    text = open(build_inp(drains, rf, [80.15, 13.08, 80.20, 13.13], str(tmp_path / "zv.inp"))).read()
+    rows = [l for l in text.splitlines() if l.startswith("RAIN_Z0")]
+    vals = [float(l.split()[-1]) for l in rows]
+    assert len(set(round(v, 1) for v in vals)) > 2 and max(vals) > 100

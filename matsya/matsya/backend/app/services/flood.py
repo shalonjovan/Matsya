@@ -668,21 +668,21 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
 
     # rainfall zones (spatial rain): parsed once, painted per step. Zoneless
     # requests take the legacy scalar path below bit-for-bit.
-    from app.services.rainfall_zones import parse_zones
+    from app.services.rainfall_zones import parse_zones, zone_step_rates
     try:
         _rfz = rainfall if isinstance(rainfall, dict) else (rainfall.model_dump(mode="json") if hasattr(rainfall, "model_dump") else {})
     except Exception:
         _rfz = {}
     zone_list, _zone_dropped = parse_zones(_rfz if isinstance(_rfz, dict) else {})
     has_zones = len(zone_list) > 0
-    zone_rates: list = []
+    # per-zone mm/hr per flood step (constant zones: flat; variable: hyetograph)
+    zone_rate_steps: list = []
     if has_zones:
         for _z in zone_list:
             try:
-                zone_rates.append(float(_z.get("amount", 0.0)) if str(_z.get("unit", "rate")) == "rate"
-                                  else float(_z.get("amount", 0.0)) / max(1e-9, float(duration)))
+                zone_rate_steps.append(zone_step_rates(_z, steps, duration))
             except Exception:
-                zone_rates.append(0.0)
+                zone_rate_steps.append([0.0] * max(1, steps))
 
     # get DEM
     dem = _dem_for_bbox(bbox, width, height)
@@ -890,10 +890,12 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
             # zoned: base rate everywhere, zone rates painted last-wins
             try:
                 rate_grid = np.full((height, width), rate_i, dtype=np.float64)
-                for _zm, _zr in zip(zone_masks, zone_rates):
+                for _zi2, _zm in enumerate(zone_masks):
                     try:
                         if _zm is not None and bool(np.any(_zm)):
-                            rate_grid[_zm] = float(_zr)
+                            _zsteps = zone_rate_steps[_zi2] if _zi2 < len(zone_rate_steps) else None
+                            _zv = float(_zsteps[i]) if _zsteps is not None and i < len(_zsteps) else float(_zsteps[-1]) if _zsteps else 0.0
+                            rate_grid[_zm] = _zv
                     except Exception:
                         continue
                 _rain_inc_grid = rate_grid * dt / 3600.0 / 1000.0
@@ -1244,12 +1246,20 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     _frac = float(np.mean(_m)) if _m is not None else 0.0
                 except Exception:
                     _frac = 0.0
+                try:
+                    _zs = zone_rate_steps[_zi] if _zi < len(zone_rate_steps) else [0.0]
+                    _zmean = float(sum(_zs) / max(1, len(_zs)))
+                    _zpeak = float(max(_zs)) if _zs else 0.0
+                except Exception:
+                    _zmean, _zpeak = 0.0, 0.0
                 zone_stats.append({
                     "index": int(_zi),
                     "id": str(_z.get("id", "z%d" % _zi)),
-                    "amountMm": float(_z.get("amount", 0.0)),
+                    "mode": str(_z.get("mode", "constant")),
+                    "amountMm": float(_z.get("amount", _z.get("maxRain", 0.0)) or 0.0),
                     "unit": str(_z.get("unit", "rate")),
-                    "rateMmHr": float(zone_rates[_zi]) if _zi < len(zone_rates) else 0.0,
+                    "rateMmHr": _zmean,
+                    "peakMmHr": _zpeak,
                     "areaKm2": round(float(area_m2 * _frac / 1e6), 4),
                 })
         except Exception:
