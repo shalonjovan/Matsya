@@ -104,3 +104,36 @@ def test_variable_zone_invalid_points_dropped():
         {"id": "bad", "mode": "variable", "points": [{"time": 0, "amount": 5}], "polygon": poly}]}
     zones, dropped = parse_zones(rf)
     assert zones == [] and dropped == ["bad"]
+
+def test_use_base_false_runs_zones_only():
+    import numpy as np
+    from app.services.flood import generate_flood
+    poly_w = {"type": "Polygon", "coordinates": [[[80.15, 13.08], [80.175, 13.08], [80.175, 13.13], [80.15, 13.13], [80.15, 13.08]]]}
+    kw = dict(width=20, height=20, steps=3)
+    rf = {"rateMmHr": 10, "durationHr": 1, "useBase": False,
+          "zones": [{"id": "w", "amount": 200, "unit": "rate", "polygon": poly_w}]}
+    snaps, _, st = generate_flood([80.15, 13.08, 80.20, 13.13], rf, **kw)
+    last = np.asarray(snaps[-1])
+    assert abs(st["totalRainMm"] - 100.0) < 1.0  # 200mm over half the domain
+    assert last[:, 10:].mean() < 0.5  # east gets advected water only (both-on funnels ~1.4m here)
+
+def test_use_zones_false_ignores_zones():
+    import numpy as np
+    from app.services.flood import generate_flood
+    poly_w = {"type": "Polygon", "coordinates": [[[80.15, 13.08], [80.175, 13.08], [80.175, 13.13], [80.15, 13.13], [80.15, 13.08]]]}
+    kw = dict(width=20, height=20, steps=3)
+    rf = {"rateMmHr": 10, "durationHr": 1, "useZones": False,
+          "zones": [{"id": "w", "amount": 200, "unit": "rate", "polygon": poly_w}]}
+    s1, _, st1 = generate_flood([80.15, 13.08, 80.20, 13.13], rf, **kw)
+    s2, _, st2 = generate_flood([80.15, 13.08, 80.20, 13.13], {"rateMmHr": 10, "durationHr": 1}, **kw)
+    assert np.array_equal(np.asarray(s1), np.asarray(s2))
+    assert st1["totalRainMm"] == st2["totalRainMm"]
+
+def test_both_sources_off_is_dry():
+    import numpy as np
+    from app.services.flood import generate_flood
+    rf = {"rateMmHr": 10, "durationHr": 1, "useBase": False, "useZones": False, "zones": []}
+    snaps, _, st = generate_flood([80.15, 13.08, 80.20, 13.13], rf, width=20, height=20, steps=3)
+    snaps2, _, _ = generate_flood([80.15, 13.08, 80.20, 13.13], rf, width=20, height=20, steps=3)
+    assert st["totalRainMm"] == 0.0  # no rainfall falls (channel initial storage may still pond)
+    assert np.array_equal(np.asarray(snaps), np.asarray(snaps2))

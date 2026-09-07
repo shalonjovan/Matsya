@@ -97,6 +97,8 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const [unit, setUnit] = useState<"rate"|"total">(editSim?.rainfall?.unit === "total" ? "total" : "rate")
   const [points, setPoints] = useState<{time:number,amount:number}[]>(editSim?.rainfall?.points ?? [{time:0,amount:0},{time:3,amount:50}])
   const [zones, setZones] = useState<RainfallZone[]>(editSim?.rainfall?.zones ?? [])
+  const [useBase, setUseBase] = useState(editSim?.rainfall?.useBase ?? true)
+  const [useZonesFlag, setUseZonesFlag] = useState(editSim?.rainfall?.useZones ?? true)
   const [cfl, setCfl] = useState(String((editSim as any)?.parameters?.cfl ?? "0.7"))
   const [initialFill, setInitialFill] = useState(String((editSim as any)?.parameters?.initialFillPct ?? "75"))
   const [search, setSearch] = useState("")
@@ -127,6 +129,8 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
       setUnit(editSim.rainfall?.unit === "total" ? "total" : "rate")
       setPoints(editSim.rainfall?.points ?? [{time:0,amount:0},{time:3,amount:50}])
       setZones(editSim.rainfall?.zones ?? [])
+      setUseBase(editSim.rainfall?.useBase ?? true)
+      setUseZonesFlag(editSim.rainfall?.useZones ?? true)
       setInitialFill(String((editSim as any)?.parameters?.initialFillPct ?? "75"))
     }
   },[editSim])
@@ -271,7 +275,8 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const polygonValid = polygon ? true : false
   const areaValid = polygonValid || bboxValid
   const isVariable = rainfallMode === "variable"
-  const rainValid = isVariable ? (points.length>=2 && !isNaN(parseFloat(totalTime)) && !isNaN(parseFloat(maxRain))) : rainfallValid
+  const sourcesValid = useBase || useZonesFlag
+  const rainValid = (isVariable ? (points.length>=2 && !isNaN(parseFloat(totalTime)) && !isNaN(parseFloat(maxRain))) : rainfallValid) && sourcesValid
 
   const drainMissing = hydroSummary ? (hydroSummary.drains ?? 0) === 0 : !(editSim as any)?.drainage?.uri
   const drainLine = hydroSummary && !drainMissing
@@ -367,13 +372,14 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
 
   const handleSubmit = async () => {
     const rainOk = isVariable ? (points.length>=2 && !isNaN(parseFloat(totalTime)) && !isNaN(parseFloat(maxRain))) : rainfallValid
+    if (!useBase && !useZonesFlag) { setError("Enable at least one rainfall source (base or spatial zones)"); return }
     if (!nameValid || !areaValid || !rainOk) { setError("Please fix validation errors"); return }
     setSaving(true); setError(null)
     try {
       const payload: any = {
         name: name.trim(),
         area: { bbox, crs: "EPSG:4326", polygon: polygon || undefined },
-        rainfall: isVariable ? { mode:"variable", totalTime: parseFloat(totalTime), maxRain: parseFloat(maxRain), unit, points, zones: zones.length ? zones : undefined } : { mode:"constant", rateMmHr: parseFloat(rate), durationHr: parseFloat(duration), constantRate: parseFloat(rate), zones: zones.length ? zones : undefined },
+        rainfall: isVariable ? { mode:"variable", totalTime: parseFloat(totalTime), maxRain: parseFloat(maxRain), unit, points, zones: zones.length ? zones : undefined, useBase, useZones: useZonesFlag } : { mode:"constant", rateMmHr: parseFloat(rate), durationHr: parseFloat(duration), constantRate: parseFloat(rate), zones: zones.length ? zones : undefined, useBase, useZones: useZonesFlag },
         parameters: { cfl: parseFloat(cfl) || 0.7, initialFillPct: Math.min(100, Math.max(0, parseFloat(initialFill) || 75)) }
       }
       let res: Response
@@ -742,7 +748,42 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                 </div>
               )}
 
-              <ZoneRain zones={zones} onChange={setZones} bbox={bbox} />
+              <div>
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-2">Rainfall sources</span>
+                <div className="flex gap-1.5 p-1.5 bg-slate-950/60 border border-slate-800 rounded-xl text-xs font-semibold">
+                  <button
+                    type="button"
+                    aria-label="Base rainfall"
+                    aria-pressed={useBase}
+                    title="Toggle the base storm (applies everywhere outside zones)"
+                    onClick={() => setUseBase(v => !v)}
+                    className={`flex-1 py-2 rounded-xl transition focus-ring ${
+                      useBase
+                        ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                        : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Base rainfall {useBase ? "on" : "off"}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Spatial zones"
+                    aria-pressed={useZonesFlag}
+                    title={zones.length ? "Toggle the drawn spatial zones" : "Draw a zone below to give this switch effect"}
+                    onClick={() => setUseZonesFlag(v => !v)}
+                    className={`flex-1 py-2 rounded-xl transition focus-ring ${
+                      useZonesFlag
+                        ? "bg-violet-500/20 text-violet-300 border border-violet-500/40"
+                        : "text-slate-500 hover:text-slate-300"
+                    }`}
+                  >
+                    Spatial zones {useZonesFlag ? "on" : "off"}
+                  </button>
+                </div>
+                {!sourcesValid && <span className="text-rose-400 text-xs mt-1 block">Enable at least one rainfall source</span>}
+              </div>
+
+              {useZonesFlag && <ZoneRain zones={zones} onChange={setZones} bbox={bbox} />}
 
               <div className="space-y-2 border border-slate-800 rounded-xl p-4 bg-slate-950/60 text-xs">
                 <div className="flex items-center justify-between py-1 border-b border-slate-800/80">

@@ -33,6 +33,8 @@ export interface Rainfall {
   points?: {time: number, amount: number}[] | null;
   curve?: {values: number[], method: string, unit: string} | null;
   zones?: RainfallZone[] | null;
+  useBase?: boolean | null;
+  useZones?: boolean | null;
 }
 
 export interface Terrain {

@@ -276,6 +276,12 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
                     _rf = None
         _rz, _ = parse_zones(_rf if isinstance(_rf, dict) else {})
         _hit = zone_at(lon, lat, _rz) if _rz else None
+        # zones disabled at the source -> report no zone even if stored
+        try:
+            if isinstance(_rf, dict) and bool(_rf.get("useZones", True)) is False:
+                _hit = None
+        except Exception:
+            pass
         rainfallZone = _hit.get("id") if isinstance(_hit, dict) else None
     except Exception:
         rainfallZone = None

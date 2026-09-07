@@ -673,8 +673,21 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         _rfz = rainfall if isinstance(rainfall, dict) else (rainfall.model_dump(mode="json") if hasattr(rainfall, "model_dump") else {})
     except Exception:
         _rfz = {}
+    if not isinstance(_rfz, dict):
+        _rfz = {}
+    # rainfall source toggles (defaults preserve legacy behavior)
+    use_base = bool(_rfz.get("useBase", True))
+    use_zones_flag = bool(_rfz.get("useZones", True))
+    if not use_base:
+        # zones-only storm: zero the base rate/curve, zones paint on top
+        try:
+            rate = 0.0
+            rates = [0.0] * max(1, steps)
+            total_rain = 0.0
+        except Exception:
+            pass
     zone_list, _zone_dropped = parse_zones(_rfz if isinstance(_rfz, dict) else {})
-    has_zones = len(zone_list) > 0
+    has_zones = len(zone_list) > 0 and use_zones_flag
     # per-zone mm/hr per flood step (constant zones: flat; variable: hyetograph)
     zone_rate_steps: list = []
     if has_zones:

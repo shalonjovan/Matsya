@@ -65,6 +65,9 @@ class Rainfall(BaseModel):
     points: list[dict] | None = None
     curve: dict | None = None
     zones: list[dict] | None = None
+    # rainfall source toggles (both default on = legacy behavior)
+    useBase: bool = True
+    useZones: bool = True
 
     @field_validator("zones", mode="before")
     @classmethod

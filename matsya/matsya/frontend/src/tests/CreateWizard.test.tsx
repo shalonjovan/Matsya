@@ -80,4 +80,28 @@ describe("CreateWizard", ()=>{
     fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
     expect(screen.getByText(/200.*mm\/hr/i)).toBeInTheDocument()
   })
+
+  it("renders rainfall source toggles defaulting on", ()=>{
+    render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} />)
+    fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
+    expect(screen.getByLabelText("Base rainfall")).toHaveAttribute("aria-pressed", "true")
+    expect(screen.getByLabelText("Spatial zones")).toHaveAttribute("aria-pressed", "true")
+  })
+
+  it("blocks submit when both rainfall sources are off", async ()=>{
+    vi.stubGlobal("fetch", vi.fn(async (url: any) => {
+      if (String(url).includes("/api/hydro/summary")) {
+        return { ok: true, json: async () => ({ drains: 52, snapped_to_waterbody: 20, to_river: 7, to_sea: 25 }) }
+      }
+      throw new Error("unexpected fetch " + url)
+    }))
+    render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} />)
+    fireEvent.change(document.getElementById("wizard-sim-name") as HTMLInputElement, { target: { value: "srctest" } })
+    fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
+    fireEvent.click(screen.getByLabelText("Base rainfall"))
+    fireEvent.click(screen.getByLabelText("Spatial zones"))
+    fireEvent.click(screen.getByLabelText("Step 4: Physics"))
+    fireEvent.click(screen.getByText("Run Simulation"))
+    expect(await screen.findByText(/at least one rainfall source/i)).toBeInTheDocument()
+  })
 })

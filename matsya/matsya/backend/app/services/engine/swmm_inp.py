@@ -132,8 +132,20 @@ def _stamp_lines(name, series):
 
 def build_inp(drains, rainfall, bbox, out_path):
     drains = list(drains or [])
+    try:
+        _rfd = rainfall if isinstance(rainfall, dict) else {}
+    except Exception:
+        _rfd = {}
+    use_base = bool((_rfd or {}).get("useBase", True))
+    use_zones_flag = bool((_rfd or {}).get("useZones", True))
     series = _rain_series(rainfall)
-    zone_series, zones = _zone_regimes(rainfall, series)
+    if not use_base:
+        # zones-only storm: base gage stays dry
+        try:
+            series = [(float(t), 0.0) for t, v in series]
+        except Exception:
+            pass
+    zone_series, zones = ([], []) if not use_zones_flag else _zone_regimes(rainfall, series)
     end_h = series[-1][0] + 1.0
 
     def hms(h):
