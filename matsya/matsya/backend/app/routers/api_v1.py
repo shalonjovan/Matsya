@@ -205,13 +205,29 @@ def safe_spaces(body: dict):
         _bb = sim.get("area", {}).get("bbox") if isinstance(sim, dict) else sim.area.bbox
     except Exception:
         _bb = [80.15, 13.08, 80.20, 13.13]
-    from app.services.safe_spaces import rank_safe_spaces
-    spaces, reason = rank_safe_spaces(sim, list(_bb), {"lat": _olat, "lon": _olon},
+    from app.services.safe_spaces import rank_safe_spaces, nearest_road_point, SNAP_FALLBACK_M
+    _origin = {"lat": _olat, "lon": _olon}
+    _snapped = None
+    spaces, reason = rank_safe_spaces(sim, list(_bb), _origin,
                                       depart_min=_depart, threshold_cm=_thresh,
                                       limit=max(1, min(10, _limit)))
     if reason == "origin outside routable network (200m)":
-        raise HTTPException(422, reason)
-    return v1_envelope({"spaces": spaces, "reason": reason})
+        # fallback: nearest mapped road within 2 km, explicitly disclosed —
+        # road coverage is sparse in places, and a click in a gap should still help
+        try:
+            _near = nearest_road_point(sim, list(_bb), _olat, _olon)
+        except Exception:
+            _near = None
+        if _near is not None and float(_near.get("distanceM", 1e9)) <= float(SNAP_FALLBACK_M):
+            _origin = {"lat": float(_near["lat"]), "lon": float(_near["lon"])}
+            _snapped = {"lat": float(_near["lat"]), "lon": float(_near["lon"]),
+                        "distanceM": float(_near["distanceM"])}
+            spaces, reason = rank_safe_spaces(sim, list(_bb), _origin,
+                                              depart_min=_depart, threshold_cm=_thresh,
+                                              limit=max(1, min(10, _limit)))
+        else:
+            raise HTTPException(422, "No mapped roads within 2 km of that point — try a point near a road")
+    return v1_envelope({"spaces": spaces, "reason": reason, "originSnapped": _snapped})
 
 
 @router.post("/nowcasts", status_code=201)

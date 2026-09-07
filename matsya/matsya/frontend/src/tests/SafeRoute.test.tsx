@@ -53,4 +53,28 @@ describe("SafeRoute", () => {
     fireEvent.click(screen.getByText(/find safe space/i))
     expect(await screen.findByText(/no reachable safe space/i)).toBeInTheDocument()
   })
+
+  it("shows a friendly message for API errors, not raw JSON", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: false, status: 422,
+      text: async () => '{"detail":"origin outside routable network (200m)"}',
+    } as any)))
+    render(<SafeRoute simulation={{ id: "1" }} timeMin={0}
+      origin={{ lat: 13.10, lon: 80.18 }} onSelectRoute={() => {}} />)
+    fireEvent.click(screen.getByText(/find safe space/i))
+    expect(await screen.findByText(/no mapped roads within 200 m/i)).toBeInTheDocument()
+    expect(screen.queryByText(/{"detail"/)).not.toBeInTheDocument()
+  })
+
+  it("discloses when routing starts from a snapped road", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ v: "1", data: { spaces: SPACES, reason: null,
+        originSnapped: { lat: 13.10, lon: 80.19, distanceM: 390 } } }),
+    } as any)))
+    render(<SafeRoute simulation={{ id: "1" }} timeMin={0}
+      origin={{ lat: 13.10, lon: 80.18 }} onSelectRoute={() => {}} />)
+    fireEvent.click(screen.getByText(/find safe space/i))
+    expect(await screen.findByText(/nearest mapped road, 390 m away/i)).toBeInTheDocument()
+  })
 })

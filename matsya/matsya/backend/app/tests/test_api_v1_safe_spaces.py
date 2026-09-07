@@ -60,3 +60,22 @@ def test_safe_spaces_deterministic():
     a = _post(c).json()["data"]["spaces"]
     b = _post(c).json()["data"]["spaces"]
     assert [(s["name"], s["route"]["etaMin"]) for s in a] == [(s["name"], s["route"]["etaMin"]) for s in b]
+
+
+def test_safe_spaces_snaps_distant_origin_with_disclosure():
+    # fixed gap point (~230m from mapped roads): beyond 200m snap, inside 2km fallback
+    c = _client()
+    r = _post(c, origin={"lat": 13.11, "lon": 80.182})
+    assert r.status_code == 200, r.text
+    j = r.json()["data"]
+    assert j["originSnapped"] is not None
+    assert 200 < j["originSnapped"]["distanceM"] < 2000
+    assert 1 <= len(j["spaces"]) <= 3
+
+
+def test_safe_spaces_far_field_422():
+    # mid-ocean: beyond even the fallback radius
+    c = _client()
+    r = _post(c, origin={"lat": 5.0, "lon": 75.0})
+    assert r.status_code == 422
+    assert "2 km" in r.json()["detail"]

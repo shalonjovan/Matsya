@@ -7,6 +7,31 @@ masks (excluded), with a verified safest route from the origin (reachable).
 import math
 
 MAX_CANDIDATES = 60
+SNAP_FALLBACK_M = 2000.0
+
+
+def nearest_road_point(sim, bbox, lat, lon):
+    """Nearest graph node to a point. Returns {lat, lon, distanceM} or None. Never raises."""
+    try:
+        from app.services.safe_routes import build_graph, _haversine_m
+        from app.services.road_segments import segment_series
+        rows, _m = segment_series(sim, bbox=list(bbox), thresholdCm=15.0,
+                                  minPeakCm=0.0, limit=4000)
+        _by_id = {s["segmentId"]: s.get("series") or [] for s in rows}
+        nodes, _adj = build_graph(sim, list(bbox), _by_id)
+        best, bestd = None, float("inf")
+        for _nid, (_x, _y) in (nodes or {}).items():
+            try:
+                _d = _haversine_m(float(lon), float(lat), _x, _y)
+                if _d < bestd:
+                    bestd, best = _d, (_x, _y)
+            except Exception:
+                continue
+        if best is None:
+            return None
+        return {"lat": round(best[1], 6), "lon": round(best[0], 6), "distanceM": round(bestd, 0)}
+    except Exception:
+        return None
 
 
 def _cell_lonlat(bbox, rows, cols, r, c):

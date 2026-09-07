@@ -28,6 +28,21 @@ export default function SafeRoute({ simulation, timeMin, origin, onSelectRoute }
   const [error, setError] = useState<string | null>(null)
   const [spaces, setSpaces] = useState<any[] | null>(null)
   const [reason, setReason] = useState<string | null>(null)
+  const [snapped, setSnapped] = useState<{ lat: number; lon: number; distanceM: number } | null>(null)
+
+  const friendlyError = (raw: string) => {
+    try {
+      const detail = JSON.parse(raw)?.detail
+      if (typeof detail === "string" && detail) {
+        if (detail.includes("routable network (200m)"))
+          return "No mapped roads within 200 m of that point — try clicking near a road."
+        if (detail.includes("within 2 km"))
+          return "No mapped roads within 2 km of that point — try a point near a road."
+        return detail
+      }
+    } catch {}
+    return raw || "Search failed."
+  }
 
   useEffect(() => {
     if (origin?.lat != null) setLat(String(origin.lat))
@@ -48,6 +63,7 @@ export default function SafeRoute({ simulation, timeMin, origin, onSelectRoute }
     setError(null)
     setSpaces(null)
     setReason(null)
+    setSnapped(null)
     onSelectRoute(null)
     try {
       const res = await fetch("/api/v1/safe-spaces", {
@@ -63,11 +79,12 @@ export default function SafeRoute({ simulation, timeMin, origin, onSelectRoute }
       })
       if (!res.ok) {
         const txt = await res.text()
-        throw new Error(txt || `search failed (${res.status})`)
+        throw new Error(friendlyError(txt) || `search failed (${res.status})`)
       }
       const j = await res.json()
       setSpaces(j?.data?.spaces ?? [])
       setReason(j?.data?.reason ?? null)
+      setSnapped(j?.data?.originSnapped ?? null)
     } catch (e: any) {
       setError(e?.message ?? "Search failed.")
     } finally {
@@ -138,6 +155,12 @@ export default function SafeRoute({ simulation, timeMin, origin, onSelectRoute }
           <AlertTriangle className="w-3.5 h-3.5" />
           <span>{error}</span>
         </div>
+      )}
+
+      {snapped && spaces !== null && spaces.length > 0 && (
+        <p className="text-[11px] text-amber-200/90 font-mono">
+          Routing from nearest mapped road, {Math.round(snapped.distanceM)} m away.
+        </p>
       )}
 
       {spaces !== null && spaces.length === 0 && (
