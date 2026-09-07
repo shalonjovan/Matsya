@@ -178,3 +178,45 @@ def safe_route(body: dict):
                              "destination outside routable network (200m)"):
         raise HTTPException(422, res["reason"])
     return v1_envelope(res)
+
+
+@router.post("/nowcasts", status_code=201)
+def create_nowcast(body: dict):
+    """Radar nowcast cells in, running zoned sim out. Cells follow zone rules (cap 12)."""
+    try:
+        _name = str((body or {}).get("name", "nowcast") or "nowcast")
+        _bbox = list((body or {}).get("bbox") or [80.15, 13.08, 80.20, 13.13])
+        _issued = str((body or {}).get("issuedAt", "") or "")
+        _cells = list((body or {}).get("cells") or [])
+        _base = float((body or {}).get("baseRateMmHr", 0.0) or 0.0)
+        _dur = float((body or {}).get("durationHr", 1.0) or 1.0)
+    except Exception:
+        raise HTTPException(422, "name/bbox/cells with issuedAt are required")
+    if not _cells:
+        raise HTTPException(422, "cells must be a non-empty list")
+    from app.services.rainfall_zones import parse_zones, paint_rate_grid
+    zones, dropped = parse_zones({"zones": _cells})
+    try:
+        from app.services.simulation_store import store as _store
+        sim = _store.create({
+            "name": f"{_name} (radar {_issued})" if _issued else _name,
+            "area": {"bbox": _bbox, "crs": "EPSG:4326"},
+            "rainfall": {"mode": "constant", "rateMmHr": _base, "durationHr": _dur,
+                         "constantRate": _base, "zones": zones},
+        })
+    except Exception as e:
+        raise HTTPException(400, f"simulation create failed: {e}")
+    try:
+        import numpy as _np
+        _grid = paint_rate_grid(_base, zones, _bbox, 180, 180, _dur)
+        _total = round(float(_np.mean(_grid)), 2)
+    except Exception:
+        _total = None
+    try:
+        _sid = getattr(sim, "id", None)
+        if _sid is None and isinstance(sim, dict):
+            _sid = sim.get("id")
+    except Exception:
+        _sid = None
+    return v1_envelope({"simId": _sid, "acceptedCells": len(zones),
+                        "droppedCells": list(dropped or []), "totalRainMm": _total})
