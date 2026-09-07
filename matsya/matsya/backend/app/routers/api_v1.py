@@ -180,6 +180,40 @@ def safe_route(body: dict):
     return v1_envelope(res)
 
 
+@router.post("/safe-spaces")
+def safe_spaces(body: dict):
+    _o = (body or {}).get("origin") or {}
+    if not isinstance(_o, dict) or _o.get("lat") is None or _o.get("lon") is None:
+        raise HTTPException(422, "origin as {lat, lon} is required")
+    try:
+        _sim_id = str((body or {}).get("simId", ""))
+    except Exception:
+        _sim_id = ""
+    if not _sim_id:
+        raise HTTPException(422, "simId is required")
+    try:
+        _olat, _olon = float(_o.get("lat") or 0), float(_o.get("lon") or 0)
+        _depart = float((body or {}).get("departAtMin", 0.0) or 0.0)
+        _thresh = float((body or {}).get("thresholdCm", 15.0) or 15.0)
+        _limit = int((body or {}).get("limit", 3) or 3)
+    except Exception:
+        raise HTTPException(422, "departAtMin/thresholdCm/limit must be numbers")
+    if not (-90 <= _olat <= 90 and -180 <= _olon <= 180):
+        raise HTTPException(422, "origin outside valid lon/lat range")
+    sim = _get_sim(_sim_id)
+    try:
+        _bb = sim.get("area", {}).get("bbox") if isinstance(sim, dict) else sim.area.bbox
+    except Exception:
+        _bb = [80.15, 13.08, 80.20, 13.13]
+    from app.services.safe_spaces import rank_safe_spaces
+    spaces, reason = rank_safe_spaces(sim, list(_bb), {"lat": _olat, "lon": _olon},
+                                      depart_min=_depart, threshold_cm=_thresh,
+                                      limit=max(1, min(10, _limit)))
+    if reason == "origin outside routable network (200m)":
+        raise HTTPException(422, reason)
+    return v1_envelope({"spaces": spaces, "reason": reason})
+
+
 @router.post("/nowcasts", status_code=201)
 def create_nowcast(body: dict):
     """Radar nowcast cells in, running zoned sim out. Cells follow zone rules (cap 12)."""
