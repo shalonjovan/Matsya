@@ -24,6 +24,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
   const mapRef = useRef<any>(null)
   const layerRefs = useRef<any>({})
   const [basemap, setBasemap] = useState<"dark" | "hot" | "satellite">("hot")
+  const [dataWarn, setDataWarn] = useState<string | null>(null)
   // Track current simulation id to detect changes
   const prevSimIdRef = useRef<string | null>(null)
   useEffect(()=>{
@@ -59,9 +60,20 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         const bConfig = BASEMAP_TILES[basemap] || BASEMAP_TILES.dark
         const baseLayer = L.tileLayer(bConfig.url, { maxZoom: 19, attribution: bConfig.attr }).addTo(map)
         layerRefs.current.baseLayer = baseLayer
-        // Show loading if simulation is still processing (elevation/flood not yet ready)
-        const isProcessing = (simulation as any)?.status === "Running" || !(simulation as any)?.elevation?.stats || !(simulation as any)?.flood?.stats
-        if (isProcessing) {
+        // Show loading only while data is still pending AND the backend has not
+        // settled. A Completed/Error sim with partial data (e.g. elevation
+        // generation failed) must never strand the spinner: dismiss + warn.
+        const hasData = !!(simulation as any)?.elevation?.stats && !!(simulation as any)?.flood?.stats
+        const isSettled = ["Completed", "Error"].includes((simulation as any)?.status)
+        const needsProcessing = !hasData && !isSettled
+        const dismissOverlay = (warn: string | null) => {
+          try {
+            const el = document.getElementById("processing-overlay")
+            if (el) el.remove()
+          } catch {}
+          if (warn) setDataWarn(warn)
+        }
+        if (needsProcessing) {
           const loadingDiv = document.createElement("div")
           loadingDiv.innerHTML = '<div style="background: rgba(11,15,23,0.95); padding: 10px 16px; border-radius: 12px; font-size: 13px; color: #f1f5f9; border: 1px solid #334155; box-shadow: 0 8px 24px rgba(0,0,0,0.5); text-align: center; font-family: monospace;">Processing elevation & flood...<br><span style="font-size: 11px; color: #94a3b8;">This may take a few seconds for new simulations</span><br><span style="display:inline-block; width:16px; height:16px; border:2px solid #22d3ee; border-top-color: transparent; border-radius:50%; animation: spin 1s linear infinite; margin-top: 6px;"></span></div><style>@keyframes spin { to { transform: rotate(360deg); } }</style>'
           loadingDiv.style.position = "absolute"
@@ -71,15 +83,17 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           loadingDiv.style.zIndex = "1000"
           loadingDiv.id = "processing-overlay"
           divRef.current.appendChild(loadingDiv)
-          // Poll until ready
+          // Poll until ready or settled — never strand the spinner
           const poll = setInterval(async () => {
             try {
               const res = await fetch(`/api/simulations/${simulation.id}`)
               const sim = await res.json()
-              if (sim.elevation?.stats && sim.flood?.stats) {
+              const freshHasData = !!(sim.elevation?.stats && sim.flood?.stats)
+              const freshSettled = ["Completed", "Error"].includes(sim.status)
+              if (freshHasData || freshSettled) {
                 clearInterval(poll)
-                const el = document.getElementById("processing-overlay")
-                if (el) el.remove()
+                const missing = [!sim.elevation?.stats && "elevation", !sim.flood?.stats && "flood"].filter(Boolean)
+                dismissOverlay(missing.length ? `${(missing as string[]).join(" + ")} unavailable — showing available layers` : null)
                 // Optionally reload the map overlays
                 try {
                   const newElevUri = sim.elevation.elevationUri + `?v=${sim.elevation.stats.mean}`
@@ -95,7 +109,13 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
               }
             } catch {}
           }, 1500)
-          setTimeout(() => clearInterval(poll), 30000)
+          setTimeout(() => {
+            clearInterval(poll)
+            // only warn if the overlay actually survived (clean dismisses no-op)
+            try {
+              if (document.getElementById("processing-overlay")) dismissOverlay("Still processing — showing available layers")
+            } catch {}
+          }, 30000)
         }
         // flood overlay from TIF per simulation + time — Flood depth §9
         const timeIdx = time ?? 0
@@ -425,6 +445,21 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         data-testid="map-view"
         style={{width:"100%", height:"100%", minHeight:"500px"}}
       />
+
+      {/* Non-blocking data-availability warning (never a stranded spinner) */}
+      {dataWarn && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[500] flex items-center gap-2 px-3 py-1.5 rounded-xl glass-panel border border-amber-500/40 shadow-2xl text-[11px] font-mono text-amber-200">
+          <span>{dataWarn}</span>
+          <button
+            type="button"
+            aria-label="Dismiss data warning"
+            onClick={() => setDataWarn(null)}
+            className="px-1.5 rounded-md text-amber-300 hover:text-white hover:bg-slate-800/80 transition"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Floating Basemap Selector */}
       <div className="absolute bottom-4 left-4 z-[400] flex items-center gap-1 p-1 rounded-xl glass-panel border border-slate-700/80 shadow-2xl text-[11px] font-mono">
