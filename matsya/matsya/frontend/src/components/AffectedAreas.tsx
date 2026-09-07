@@ -8,10 +8,8 @@ export default function AffectedAreas({ simulation }: any){
   useEffect(()=>{
     if(!simulation?.id) return
     fetch(`/api/simulations/${simulation.id}/affected-areas`).then(r=>r.json()).then(setAreas).catch(()=>{
-      setAreas([
-        {name:"Velachery",maxDepth:1.24,duration:"3h 12m",rank:1,lat:12.98,lon:80.22},
-        {name:"Pallikaranai",maxDepth:0.92,duration:"2h 48m",rank:2,lat:12.94,lon:80.21}
-      ])
+      // honest empty state: never fabricate hotspot names when data is unavailable
+      setAreas([])
     })
   },[simulation])
 

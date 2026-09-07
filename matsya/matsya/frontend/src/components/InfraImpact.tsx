@@ -8,8 +8,8 @@ export default function InfraImpact({ simulation }: any){
 
   useEffect(()=>{
     if(!simulation?.id) return
-    fetch(`/api/simulations/${simulation.id}/roads`).then(r=>r.json()).then(setRoads).catch(()=>setRoads([{id:"R1",maxDepth:0.8,duration:"2h",firstFlood:"00:15",peak:"01:20",maxVel:0.5}]))
-    fetch(`/api/simulations/${simulation.id}/drains`).then(r=>r.json()).then(setDrains).catch(()=>setDrains([{id:"D1",flow:1.2,depth:0.5,status:"ok",capacity:null,overCapacity:false}]))
+    fetch(`/api/simulations/${simulation.id}/roads`).then(r=>r.json()).then(setRoads).catch(()=>setRoads([]))
+    fetch(`/api/simulations/${simulation.id}/drains`).then(r=>r.json()).then(setDrains).catch(()=>setDrains([]))
   },[simulation])
 
   return (

@@ -54,7 +54,7 @@ export default function Reports({ simulation }: any){
         )}
         {report.hydro && (
           <div className="text-[11px] text-cyan-400 pt-1 border-t border-slate-800">
-            Hydro: {report.hydro.snapped ?? 20} drains → {report.hydro.waterbodies ?? 32} water bodies, max stage {report.hydro.maxStage ?? "6.1"}m
+            Hydro: {report.hydro.snapped ?? 20} drains → {report.hydro.waterbodies ?? 32} water bodies{report.hydro.maxStage != null ? `, max stage ${report.hydro.maxStage}m` : ""}
           </div>
         )}
       </div>
