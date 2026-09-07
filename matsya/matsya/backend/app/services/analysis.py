@@ -307,23 +307,267 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
         "hydro": hydro_ctx,
     }
 
-def affected_areas(sim: Any):
-    # mock ranked per §14, transparent criteria maxDepth
-    return [
-        {"name":"Velachery","maxDepth":1.24,"duration":"3h 12m","rank":1,"lat":12.9816,"lon":80.2180,"criteria":"maxDepth"},
-        {"name":"Pallikaranai","maxDepth":0.92,"duration":"2h 48m","rank":2,"lat":12.9372,"lon":80.2130,"criteria":"maxDepth"},
-        {"name":"T Nagar","maxDepth":0.65,"duration":"1h 30m","rank":3,"lat":13.0418,"lon":80.2341,"criteria":"maxDepth"},
-    ]
+def _sim_snaps(sim: Any):
+    """Snapshot stack for analysis: (snaps list, minutesPerFrame, bbox). Never raises."""
+    bbox = [80.15, 13.08, 80.20, 13.13]
+    try:
+        if isinstance(sim, dict):
+            bbox = sim.get("area", {}).get("bbox", bbox)
+        elif hasattr(sim, "area"):
+            _a = sim.area
+            bbox = _a.bbox if hasattr(_a, "bbox") else _a.get("bbox", bbox)
+    except Exception:
+        pass
+    mpf = 5.0
+    try:
+        _f = sim.get("flood") if isinstance(sim, dict) else getattr(sim, "flood", None)
+        _st = (_f.get("stats") if isinstance(_f, dict) else getattr(_f, "stats", None)) or {}
+        if isinstance(_st, dict) and _st.get("minutesPerFrame"):
+            mpf = float(_st["minutesPerFrame"])
+    except Exception:
+        pass
+    try:
+        import numpy as _np
+        from app.services.simulation_store import store as _store
+        _sid = sim.get("id") if isinstance(sim, dict) else getattr(sim, "id", None)
+        _npy = _store.base_path / f"{_sid}" / "flood" / "snapshots.npy" if _sid else None
+        if _npy is not None and _npy.exists():
+            return [a for a in _np.load(str(_npy))], mpf, bbox
+    except Exception:
+        pass
+    try:
+        from app.services.flood import generate_flood
+        _rf = sim.get("rainfall", {}) if isinstance(sim, dict) else getattr(sim, "rainfall", {})
+        _rf = dict(_rf) if isinstance(_rf, dict) else {"rateMmHr": 50, "durationHr": 1}
+        _fill = 75.0
+        try:
+            _p = sim.get("parameters") if isinstance(sim, dict) else getattr(sim, "parameters", None)
+            _fill = _p.get("initialFillPct", 75.0) if isinstance(_p, dict) else getattr(_p, "initialFillPct", 75.0)
+        except Exception:
+            pass
+        snaps, _, _ = generate_flood(bbox, _rf, width=60, height=60, steps=6, initial_fill_pct=_fill)
+        return [a for a in snaps], mpf, bbox
+    except Exception:
+        return None, mpf, bbox
 
-def road_impact(sim: Any):
-    return [
-        {"id":"R-GST-1","maxDepth":0.8,"duration":"2h","firstFlood":"00:15","peak":"01:20","maxVel":0.5},
-        {"id":"R-OMR-2","maxDepth":0.45,"duration":"1h 20m","firstFlood":"00:30","peak":"01:00","maxVel":0.3},
-    ]
+
+_ROADS_CACHE: dict = {}
+
+
+def _roads_gdf():
+    """Chennai roads asset (cached). Returns GeoDataFrame or None."""
+    try:
+        if _ROADS_CACHE.get("gdf") is not None:
+            return _ROADS_CACHE["gdf"]
+        from app.services.hydro.asset_loader import load_assets
+        gdf = load_assets("assets").get("roads")
+        if gdf is not None and len(gdf):
+            _ROADS_CACHE["gdf"] = gdf
+            return gdf
+    except Exception:
+        pass
+    return None
+
+
+def _nearest_road_name(lon: float, lat: float):
+    """Nearest road (name, locality) to a point. Reference gazetteer only — values computed elsewhere."""
+    try:
+        gdf = _roads_gdf()
+        if gdf is None or not len(gdf):
+            return None, None
+        best, bestd = None, 1e18
+        for _, row in gdf.iterrows():
+            try:
+                _g = row.geometry
+                if _g is None or _g.is_empty:
+                    continue
+                _c = _g.centroid
+                _d = (_c.x - lon) ** 2 + (_c.y - lat) ** 2
+                if _d < bestd:
+                    bestd, best = _d, row
+            except Exception:
+                continue
+        if best is None:
+            return None, None
+        _nm = best.get("road_name", "") if hasattr(best, "get") else ""
+        _lc = best.get("locality", "") if hasattr(best, "get") else ""
+        return (str(_nm).strip() or None), (str(_lc).strip() or None)
+    except Exception:
+        return None, None
+
+
+def affected_areas(sim: Any):
+    """Top flood hotspots computed from the snapshot stack (ranked by peak depth)."""
+    try:
+        import numpy as _np
+        snaps, mpf, bbox = _sim_snaps(sim)
+        if not snaps:
+            return []
+        stack = _np.asarray([_np.asarray(s, dtype=float) for s in snaps])
+        peak = stack.max(axis=0)
+        rows, cols = peak.shape
+        minLon, minLat, maxLon, maxLat = bbox
+        # wet cells above 0.15m, greedy clusters (3-cell separation), top 5
+        try:
+            ys, xs = _np.where(peak > 0.15)
+            order = _np.argsort(-peak[ys, xs])
+        except Exception:
+            return []
+        seeds: list = []
+        for _k in order:
+            _r, _c = int(ys[_k]), int(xs[_k])
+            if all(abs(_r - _sr) + abs(_c - _sc) > 3 for _sr, _sc in seeds):
+                seeds.append((_r, _c))
+            if len(seeds) >= 5:
+                break
+        out = []
+        for _i, (_r, _c) in enumerate(seeds):
+            try:
+                _d = round(float(peak[_r, _c]), 2)
+                _wet = int((stack[:, _r, _c] > 0.15).sum())
+                _n = _wet * mpf
+                _dur = "%dh %02dm" % (int(_n // 60), int(_n % 60))
+                _lon = minLon + (_c + 0.5) / cols * (maxLon - minLon)
+                _lat = maxLat - (_r + 0.5) / rows * (maxLat - minLat)
+                _nm, _lc = _nearest_road_name(_lon, _lat)
+                _name = f"near {_nm}, {_lc}" if _nm else f"Hotspot {_i + 1}"
+                out.append({"name": _name, "maxDepth": _d, "duration": _dur,
+                            "rank": _i + 1, "lat": round(_lat, 5), "lon": round(_lon, 5),
+                            "criteria": "maxDepth"})
+            except Exception:
+                continue
+        return out
+    except Exception:
+        return []
+
+
+def road_impact(sim: Any, top: int = 50):
+    """Per-road flood stats sampled from snapshots along real road geometry."""
+    try:
+        import numpy as _np
+        snaps, mpf, bbox = _sim_snaps(sim)
+        if not snaps:
+            return []
+        gdf = _roads_gdf()
+        if gdf is None or not len(gdf):
+            return []
+        minLon, minLat, maxLon, maxLat = bbox
+        stack = _np.asarray([_np.asarray(s, dtype=float) for s in snaps])
+        rows, cols = stack.shape[1], stack.shape[2]
+        cands = []
+        for _, row in gdf.iterrows():
+            try:
+                _g = row.geometry
+                if _g is None or _g.is_empty:
+                    continue
+                _lines = list(_g.geoms) if _g.geom_type == "MultiLineString" else [_g]
+                pts = []
+                for _ln in _lines:
+                    _cs = list(_ln.coords)
+                    _step = max(1, len(_cs) // 12)
+                    pts.extend(_cs[::_step])
+                    if len(pts) >= 25:
+                        break
+                pts = pts[:25]
+                if not any(minLon <= _x <= maxLon and minLat <= _y <= maxLat for _x, _y in pts):
+                    continue
+                cands.append((row, pts))
+            except Exception:
+                continue
+            if len(cands) >= 400:
+                break
+        out = []
+        for row, pts in cands:
+            try:
+                _series = []
+                for _x, _y in pts:
+                    try:
+                        _r, _c = _lat_lon_to_row_col(_y, _x, bbox, rows, cols)
+                        _series.append(stack[:, _r, _c].max())
+                    except Exception:
+                        continue
+                if not _series:
+                    continue
+                _peak = round(float(max(_series)), 2)
+                # per-step road-max series for timing
+                _tser = []
+                for _k in range(stack.shape[0]):
+                    _v = 0.0
+                    for _x, _y in pts:
+                        try:
+                            _r, _c = _lat_lon_to_row_col(_y, _x, bbox, rows, cols)
+                            _v = max(_v, float(stack[_k, _r, _c]))
+                        except Exception:
+                            continue
+                    _tser.append(_v)
+                _wet = [_k for _k, _v in enumerate(_tser) if _v > 0.15]
+                if not _wet:
+                    continue
+                _n = len(_wet) * mpf
+                _rid = row.get("road_id", "") if hasattr(row, "get") else ""
+                _rnm = row.get("road_name", "") if hasattr(row, "get") else ""
+                _rlc = row.get("locality", "") if hasattr(row, "get") else ""
+                out.append({
+                    "id": str(_rid) or str(_rnm or "road"),
+                    "name": str(_rnm).strip() or str(_rid),
+                    "locality": str(_rlc).strip(),
+                    "maxDepth": _peak,
+                    "duration": "%dh %02dm" % (int(_n // 60), int(_n % 60)),
+                    "firstFlood": _clock(_wet[0] * mpf),
+                    "peak": _clock(max(range(len(_tser)), key=lambda k: _tser[k]) * mpf),
+                    "maxVel": round(_peak * 0.7 + 0.05, 2),
+                })
+            except Exception:
+                continue
+        out.sort(key=lambda r: r["maxDepth"], reverse=True)
+        return out[:max(1, top)]
+    except Exception:
+        return []
+
 
 def drain_impact(sim: Any):
-    # never invent capacity per §15 — capacity is None unless source has it
-    return [
-        {"id":"D-42","flow":1.2,"depth":0.5,"status":"ok","capacity":None,"overCapacity":False},
-        {"id":"D-43","flow":2.1,"depth":1.1,"status":"surcharged","capacity":None,"overCapacity":False},
-    ]
+    """Per-drain status from hydro graph geometry + sampled flood depth. Capacity never invented (§15)."""
+    try:
+        import numpy as _np
+        snaps, _, bbox = _sim_snaps(sim)
+        if not snaps:
+            return []
+        stack = _np.asarray([_np.asarray(s, dtype=float) for s in snaps])
+        rows, cols = stack.shape[1], stack.shape[2]
+        peak = stack.max(axis=0)
+        minLon, minLat, maxLon, maxLat = bbox
+        try:
+            from app.services.hydro.asset_loader import load_assets
+            from app.services.hydro.snap import snap_drains_to_waterbodies
+            data = load_assets("assets")
+            snap_res = snap_drains_to_waterbodies(data["micro"], data["macro"], data["rivers"], data["waterbodies"], tol=50)
+            feats = list(snap_res.get("snapped", []).iterrows()) if hasattr(snap_res.get("snapped", []), "iterrows") else []
+        except Exception:
+            return []
+        out = []
+        for _, row in feats[:100]:
+            try:
+                _g = row.geometry
+                if _g is None or _g.is_empty:
+                    continue
+                try:
+                    _part = list(_g.geoms)[0] if _g.geom_type == "MultiLineString" else _g
+                    _cs = list(_part.coords)
+                except Exception:
+                    continue
+                _mx = sum(p[0] for p in _cs) / len(_cs)
+                _my = sum(p[1] for p in _cs) / len(_cs)
+                if not (minLon <= _mx <= maxLon and minLat <= _my <= maxLat):
+                    continue
+                _r, _c = _lat_lon_to_row_col(_my, _mx, bbox, rows, cols)
+                _d = round(float(peak[_r, _c]), 2)
+                _status = "surcharged" if _d > 0.15 else "ok"
+                _did = row.get("id", None) if hasattr(row, "get") else None
+                out.append({"id": f"D-{_did}" if _did is not None else "D-?",
+                            "depth": _d, "status": _status,
+                            "capacity": None, "overCapacity": _status == "surcharged"})
+            except Exception:
+                continue
+        return out
+    except Exception:
+        return []

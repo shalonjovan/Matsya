@@ -61,6 +61,13 @@ def parse_zones(rainfall):
                 dropped.append(str((z or {}).get("id", "?")))
             except Exception:
                 dropped.append("?")
+    if len(zones) > MAX_ZONES:
+        # valid but over cap: report as dropped so callers know what was ignored
+        for _z in zones[MAX_ZONES:]:
+            try:
+                dropped.append(str(_z.get("id", "z")))
+            except Exception:
+                dropped.append("?")
     return zones[:MAX_ZONES], dropped
 
 

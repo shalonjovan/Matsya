@@ -8,8 +8,8 @@ export default function InfraImpact({ simulation }: any){
 
   useEffect(()=>{
     if(!simulation?.id) return
-    fetch(`/api/simulations/${simulation.id}/roads`).then(r=>r.json()).then(setRoads).catch(()=>setRoads([{id:"R1",maxDepth:0.8,duration:"2h",firstFlood:"00:15",peak:"01:20",maxVel:0.5}]))
-    fetch(`/api/simulations/${simulation.id}/drains`).then(r=>r.json()).then(setDrains).catch(()=>setDrains([{id:"D1",flow:1.2,depth:0.5,status:"ok",capacity:null,overCapacity:false}]))
+    fetch(`/api/simulations/${simulation.id}/roads`).then(r=>r.json()).then(setRoads).catch(()=>setRoads([]))
+    fetch(`/api/simulations/${simulation.id}/drains`).then(r=>r.json()).then(setDrains).catch(()=>setDrains([]))
   },[simulation])
 
   return (
@@ -63,7 +63,7 @@ export default function InfraImpact({ simulation }: any){
             <thead className="bg-slate-950/80 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
               <tr>
                 <th className="py-1.5 px-2.5">Id</th>
-                <th className="py-1.5 px-2">Flow</th>
+                <th className="py-1.5 px-2">Status</th>
                 <th className="py-1.5 px-2">Depth</th>
                 <th className="py-1.5 px-2.5">Cap</th>
               </tr>
@@ -72,7 +72,7 @@ export default function InfraImpact({ simulation }: any){
               {drains.map((d:any)=>(
                 <tr key={d.id} className="hover:bg-slate-800/50 transition">
                   <td className="py-1.5 px-2.5 font-bold text-indigo-300">{d.id}</td>
-                  <td className="py-1.5 px-2 text-slate-200">{d.flow} m³/s</td>
+                  <td className={`py-1.5 px-2 font-semibold ${d.status === "surcharged" ? "text-amber-300" : "text-emerald-300"}`}>{d.status ?? "—"}</td>
                   <td className="py-1.5 px-2">{d.depth}m</td>
                   <td className="py-1.5 px-2.5 text-slate-400">{d.capacity ?? "—"}</td>
                 </tr>
