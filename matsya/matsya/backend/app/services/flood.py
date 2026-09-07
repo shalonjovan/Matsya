@@ -935,6 +935,43 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                 surface = flat.reshape(height, width)
         except Exception:
             pass
+        # lateral spreading: level water surfaces across flat neighbours.
+        # D8 alone only drains steepest-descent threads, so threads deepen in
+        # place instead of overtopping banks. Symmetric pairwise exchange is
+        # exactly volume-preserving (each debit has an equal credit), with
+        # donor-side scaling so no cell ever gives more than it holds
+        # (per-pair clamps alone go negative when a cell feeds two pairs).
+        try:
+            if float(np.sum(surface)) > 0:
+                for _pass in range(3):
+                    _ws = dem_filled + surface
+                    # vertical pairs (upper -> lower signed)
+                    _d = _ws[:-1, :] - _ws[1:, :]
+                    _t = 0.15 * _d
+                    _debit = np.zeros_like(surface)
+                    _debit[:-1, :] += np.maximum(_t, 0.0)
+                    _debit[1:, :] += np.maximum(-_t, 0.0)
+                    _scale = np.ones_like(surface)
+                    _nz = _debit > 0
+                    _scale[_nz] = np.minimum(1.0, surface[_nz] / np.maximum(_debit[_nz], 1e-12))
+                    _t = np.where(_t > 0, _t * _scale[:-1, :], _t * _scale[1:, :])
+                    surface[:-1, :] -= _t
+                    surface[1:, :] += _t
+                    # horizontal pairs (left -> right signed)
+                    _ws = dem_filled + surface
+                    _d = _ws[:, :-1] - _ws[:, 1:]
+                    _t = 0.15 * _d
+                    _debit = np.zeros_like(surface)
+                    _debit[:, :-1] += np.maximum(_t, 0.0)
+                    _debit[:, 1:] += np.maximum(-_t, 0.0)
+                    _scale = np.ones_like(surface)
+                    _nz = _debit > 0
+                    _scale[_nz] = np.minimum(1.0, surface[_nz] / np.maximum(_debit[_nz], 1e-12))
+                    _t = np.where(_t > 0, _t * _scale[:, :-1], _t * _scale[:, 1:])
+                    surface[:, :-1] -= _t
+                    surface[:, 1:] += _t
+        except Exception:
+            pass
         # drains: take 30% of this step's rain volume, route to wb/sea, surcharge locally
         surcharge_grid = np.zeros_like(surface)
         if rate_grid is None:
@@ -951,8 +988,10 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     # don't take more than available on average
                     take = min(take, float(np.mean(surface)) * 0.9) if float(np.mean(surface)) > 0 else 0.0
                     if take > 0:
-                        surface -= take
-                        surface = np.maximum(surface, 0.0)
+                        # proportional removal: exact volume, no clip-destruction
+                        # (uniform subtract + clip destroys real water on shallow cells)
+                        _ms = float(np.mean(surface))
+                        surface *= max(0.0, 1.0 - take / _ms) if _ms > 0 else 1.0
                 except Exception:
                     pass
         else:
@@ -968,8 +1007,8 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     take = swmm_step_total / area_m2
                     take = min(take, float(np.mean(surface)) * 0.9) if float(np.mean(surface)) > 0 else 0.0
                     if take > 0:
-                        surface -= take
-                        surface = np.maximum(surface, 0.0)
+                        _ms = float(np.mean(surface))
+                        surface *= max(0.0, 1.0 - take / _ms) if _ms > 0 else 1.0
                 except Exception:
                     pass
                 try:
@@ -1088,8 +1127,11 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                 pass
         if direct_rain_vol > 0:
             try:
-                surface -= direct_rain_vol / area_m2
-                surface = np.maximum(surface, 0.0)
+                # proportional compensation (same reason as drain take above)
+                _ms = float(np.mean(surface))
+                _tk = direct_rain_vol / area_m2
+                if _ms > 0 and _tk > 0:
+                    surface *= max(0.0, 1.0 - min(_tk, _ms * 0.999) / _ms)
             except Exception:
                 pass
         # distribute wb inflow evenly, step waterbodies
