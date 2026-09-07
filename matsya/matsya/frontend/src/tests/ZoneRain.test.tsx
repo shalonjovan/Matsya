@@ -9,20 +9,29 @@ const west: RainfallZone = {
 }
 
 describe("buildZone", () => {
-  it("assigns sequential ids and keeps valid zones", () => {
-    const z = buildZone(200, "rate", west.polygon, [])
+  it("assigns sequential ids and keeps valid value zones", () => {
+    const z = buildZone({ kind: "value", amount: 200, unit: "rate", polygon: west.polygon }, [])
     expect(z).not.toBeNull()
     expect(z!.id).toBe("z1")
     expect(z!.amount).toBe(200)
   })
   it("rejects negative amounts and non-polygons", () => {
-    expect(buildZone(-5, "rate", west.polygon, [])).toBeNull()
-    expect(buildZone(10, "rate", { type: "Point", coordinates: [0, 0] } as any, [])).toBeNull()
-    expect(buildZone(NaN, "rate", west.polygon, [])).toBeNull()
+    expect(buildZone({ kind: "value", amount: -5, unit: "rate", polygon: west.polygon }, [])).toBeNull()
+    expect(buildZone({ kind: "value", amount: 10, unit: "rate", polygon: { type: "Point", coordinates: [0, 0] } as any }, [])).toBeNull()
+    expect(buildZone({ kind: "value", amount: NaN, unit: "rate", polygon: west.polygon }, [])).toBeNull()
   })
   it("refuses a 13th zone (backend cap is 12)", () => {
     const full = Array.from({ length: 12 }, (_, i) => ({ ...west, id: `z${i + 1}` }))
-    expect(buildZone(10, "rate", west.polygon, full)).toBeNull()
+    expect(buildZone({ kind: "value", amount: 10, unit: "rate", polygon: west.polygon }, full)).toBeNull()
+  })
+  it("accepts valid curve zones and rejects short ones", () => {
+    const pts = [{ time: 0, amount: 0 }, { time: 1, amount: 150 }]
+    const z = buildZone({ kind: "curve", points: pts, totalTime: 2, maxRain: 150, unit: "rate", polygon: west.polygon }, [])
+    expect(z).not.toBeNull()
+    expect(z!.mode).toBe("variable")
+    expect(z!.points).toEqual(pts)
+    expect(buildZone({ kind: "curve", points: [{ time: 0, amount: 5 }], totalTime: 2, maxRain: 150, unit: "rate", polygon: west.polygon }, [])).toBeNull()
+    expect(buildZone({ kind: "curve", points: pts, totalTime: 0, maxRain: 150, unit: "rate", polygon: west.polygon }, [])).toBeNull()
   })
 })
 
@@ -41,6 +50,13 @@ describe("ZoneRain", () => {
     expect(screen.getByText(/200.*mm\/hr/i)).toBeInTheDocument()
     fireEvent.click(screen.getByLabelText("Remove zone z1"))
     expect(onChange).toHaveBeenCalledWith([])
+  })
+
+  it("labels curve zones with their peak", () => {
+    const curve = { ...west, id: "z2", mode: "variable" as const,
+      points: [{ time: 0, amount: 0 }, { time: 1, amount: 150 }], totalTime: 2, maxRain: 150 }
+    render(<ZoneRain zones={[curve]} onChange={() => {}} bbox={[80.15, 13.08, 80.20, 13.13]} />)
+    expect(screen.getByText(/var curve peak 150/i)).toBeInTheDocument()
   })
 
   it("shows the cap notice at 12 zones", () => {

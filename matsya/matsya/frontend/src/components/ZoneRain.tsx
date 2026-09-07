@@ -2,16 +2,16 @@ import { useState, useEffect, useRef } from "react"
 import type { RainfallZone } from "../types/simulation"
 import { ZONE_PALETTE, MAX_RAIN_ZONES } from "../types/simulation"
 import { CloudRain, Trash2, AlertTriangle } from "lucide-react"
+import RainfallGraph from "./RainfallGraph"
 
-export function buildZone(
-  amount: number,
-  unit: "rate" | "total",
-  polygon: any,
-  existing: RainfallZone[]
-): RainfallZone | null {
+export type ZoneSpec =
+  | { kind: "value"; amount: number; unit: "rate" | "total"; polygon: any }
+  | { kind: "curve"; points: { time: number; amount: number }[]; totalTime: number; maxRain: number; unit: "rate" | "total"; polygon: any }
+
+export function buildZone(spec: ZoneSpec, existing: RainfallZone[]): RainfallZone | null {
   try {
-    if (!isFinite(amount) || amount < 0) return null
     if ((existing?.length ?? 0) >= MAX_RAIN_ZONES) return null
+    const polygon = spec.polygon
     if (!polygon || polygon.type !== "Polygon") return null
     const ring = polygon.coordinates?.[0]
     if (!Array.isArray(ring) || ring.length < 4) return null
@@ -19,7 +19,23 @@ export function buildZone(
     let n = 1
     while (taken.has(`z${n}`) && n <= MAX_RAIN_ZONES) n++
     if (n > MAX_RAIN_ZONES) return null
-    return { id: `z${n}`, amount, unit, polygon: { type: "Polygon", coordinates: polygon.coordinates } }
+    const id = `z${n}`
+    const poly = { type: "Polygon", coordinates: polygon.coordinates } as RainfallZone["polygon"]
+    if (spec.kind === "curve") {
+      const pts = spec.points ?? []
+      if (!Array.isArray(pts) || pts.length < 2) return null
+      for (const p of pts) {
+        if (!isFinite(p?.time) || !isFinite(p?.amount) || p.time < 0 || p.amount < 0) return null
+      }
+      if (!isFinite(spec.totalTime) || spec.totalTime <= 0) return null
+      if (!isFinite(spec.maxRain) || spec.maxRain < 0) return null
+      if (spec.unit !== "rate" && spec.unit !== "total") return null
+      return { id, mode: "variable", unit: spec.unit, totalTime: spec.totalTime,
+               maxRain: spec.maxRain, points: pts.map(p => ({ time: p.time, amount: p.amount })), polygon: poly }
+    }
+    if (!isFinite(spec.amount) || spec.amount < 0) return null
+    if (spec.unit !== "rate" && spec.unit !== "total") return null
+    return { id, amount: spec.amount, unit: spec.unit, polygon: poly }
   } catch {
     return null
   }
@@ -79,8 +95,13 @@ interface Props {
 }
 
 export default function ZoneRain({ zones, onChange, bbox }: Props) {
+  const [entryMode, setEntryMode] = useState<"value" | "curve">("value")
   const [amount, setAmount] = useState("100")
   const [zunit, setZunit] = useState<"rate" | "total">("rate")
+  const [zPoints, setZPoints] = useState<{ time: number; amount: number }[]>([{ time: 0, amount: 0 }, { time: 1, amount: 100 }])
+  const [zTotalTime, setZTotalTime] = useState("2")
+  const [zMaxRain, setZMaxRain] = useState("150")
+  const [zCurveUnit, setZCurveUnit] = useState<"rate" | "total">("rate")
   const [drawError, setDrawError] = useState<string | null>(null)
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<any>(null)
@@ -89,6 +110,11 @@ export default function ZoneRain({ zones, onChange, bbox }: Props) {
   zonesRef.current = zones
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
+  // Leaflet callbacks read refs (map inits once) — never stale state
+  const entryRef = useRef(entryMode)
+  entryRef.current = entryMode
+  const curveRef = useRef({ zPoints, zTotalTime, zMaxRain, zCurveUnit })
+  curveRef.current = { zPoints, zTotalTime, zMaxRain, zCurveUnit }
 
   const capped = (zones?.length ?? 0) >= MAX_RAIN_ZONES
 
@@ -152,9 +178,19 @@ export default function ZoneRain({ zones, onChange, bbox }: Props) {
           }
           const amt = parseFloat((document.getElementById("zone-amount") as HTMLInputElement)?.value ?? "")
           const unt = ((document.getElementById("zone-unit") as HTMLSelectElement)?.value ?? "rate") as "rate" | "total"
-          const z = buildZone(amt, unt, gj, zonesRef.current ?? [])
+          let spec: ZoneSpec
+          if (entryRef.current === "curve") {
+            const c = curveRef.current
+            spec = { kind: "curve", points: c.zPoints, totalTime: parseFloat(c.zTotalTime),
+                     maxRain: parseFloat(c.zMaxRain), unit: c.zCurveUnit, polygon: gj }
+          } else {
+            spec = { kind: "value", amount: amt, unit: unt, polygon: gj }
+          }
+          const z = buildZone(spec, zonesRef.current ?? [])
           if (!z) {
-            setDrawError("Zone rejected: check amount ≥ 0 and fewer than 12 zones.")
+            setDrawError(entryRef.current === "curve"
+              ? "Zone rejected: curve needs ≥2 points, total time > 0 (and fewer than 12 zones)."
+              : "Zone rejected: check amount ≥ 0 and fewer than 12 zones.")
             return
           }
           setDrawError(null)
@@ -194,33 +230,83 @@ export default function ZoneRain({ zones, onChange, bbox }: Props) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <label className="text-xs text-slate-300">
-          Zone amount {zunit === "rate" ? "(mm/hr)" : "(mm total)"}
-          <input
-            id="zone-amount"
-            data-testid="zone-amount"
-            value={amount}
-            onChange={e => setAmount(e.target.value)}
-            placeholder="e.g. 200"
-            className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-cyan-500 focus:outline-none"
-          />
-        </label>
-        <label className="text-xs text-slate-300">
-          Unit
-          <select
-            id="zone-unit"
-            data-testid="zone-unit"
-            value={zunit}
-            onChange={e => setZunit(e.target.value as any)}
-            className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-cyan-500 focus:outline-none"
-          >
-            <option value="rate">Rate mm/hr</option>
-            <option value="total">Total mm</option>
-          </select>
-        </label>
+      <div className="flex gap-1.5 p-1.5 bg-slate-900/60 border border-slate-800 rounded-xl text-xs font-semibold">
+        <button
+          type="button"
+          onClick={() => setEntryMode("value")}
+          aria-pressed={entryMode === "value"}
+          className={`flex-1 py-1.5 rounded-lg transition ${
+            entryMode === "value"
+              ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          Direct value
+        </button>
+        <button
+          type="button"
+          onClick={() => setEntryMode("curve")}
+          aria-pressed={entryMode === "curve"}
+          className={`flex-1 py-1.5 rounded-lg transition ${
+            entryMode === "curve"
+              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+              : "text-slate-400 hover:text-white"
+          }`}
+        >
+          Advanced (graph)
+        </button>
       </div>
-      {!amountValid && <span className="text-rose-400 text-xs block">Amount must be a number ≥ 0</span>}
+
+      {entryMode === "value" ? (
+        <div className="grid grid-cols-2 gap-2">
+          <label className="text-xs text-slate-300">
+            Zone amount {zunit === "rate" ? "(mm/hr)" : "(mm total)"}
+            <input
+              id="zone-amount"
+              data-testid="zone-amount"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="e.g. 200"
+              className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-cyan-500 focus:outline-none"
+            />
+          </label>
+          <label className="text-xs text-slate-300">
+            Unit
+            <select
+              id="zone-unit"
+              data-testid="zone-unit"
+              value={zunit}
+              onChange={e => setZunit(e.target.value as any)}
+              className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-cyan-500 focus:outline-none"
+            >
+              <option value="rate">Rate mm/hr</option>
+              <option value="total">Total mm</option>
+            </select>
+          </label>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-2">
+            <label className="text-xs text-slate-300">Total time (hr)
+              <input value={zTotalTime} onChange={e => setZTotalTime(e.target.value)} className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs focus:border-cyan-500 focus:outline-none" />
+            </label>
+            <label className="text-xs text-slate-300">Max ({zCurveUnit === "rate" ? "mm/hr" : "mm"})
+              <input value={zMaxRain} onChange={e => setZMaxRain(e.target.value)} className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white font-mono text-xs focus:border-cyan-500 focus:outline-none" />
+            </label>
+            <label className="text-xs text-slate-300">Unit
+              <select value={zCurveUnit} onChange={e => setZCurveUnit(e.target.value as any)} className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1.5 text-white text-xs focus:border-cyan-500 focus:outline-none">
+                <option value="rate">Rate mm/hr</option>
+                <option value="total">Total mm</option>
+              </select>
+            </label>
+          </div>
+          <div className="rounded-xl border border-slate-800 overflow-hidden">
+            <RainfallGraph totalTime={parseFloat(zTotalTime) || 2} maxRain={parseFloat(zMaxRain) || 150} unit={zCurveUnit} points={zPoints} onChange={setZPoints} />
+          </div>
+          <p className="text-[11px] text-slate-400">Draw the region after shaping the curve — drag points, double-click to delete, click to add.</p>
+        </div>
+      )}
+      {!amountValid && entryMode === "value" && <span className="text-rose-400 text-xs block">Amount must be a number ≥ 0</span>}
 
       <div ref={mapRef} data-testid="zone-map" className="w-full h-[220px] rounded-xl border border-slate-800 bg-slate-950" />
       {drawError && (
@@ -243,7 +329,9 @@ export default function ZoneRain({ zones, onChange, bbox }: Props) {
               />
               <span className="font-mono text-slate-200 font-semibold">{z.id}</span>
               <span className="font-mono text-cyan-300">
-                {z.amount} {z.unit === "rate" ? "mm/hr" : "mm total"}
+                {z.mode === "variable"
+                  ? `var curve peak ${Math.max(0, ...((z.points ?? []).map(p => p.amount)))} ${z.unit === "rate" ? "mm/hr" : "mm"}`
+                  : `${z.amount} ${z.unit === "rate" ? "mm/hr" : "mm total"}`}
               </span>
               <button
                 type="button"

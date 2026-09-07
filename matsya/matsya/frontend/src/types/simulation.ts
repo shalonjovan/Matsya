@@ -8,8 +8,12 @@ export interface Area {
 
 export interface RainfallZone {
   id: string;
-  amount: number;
+  amount?: number;
   unit: "rate" | "total";
+  mode?: "constant" | "variable";
+  points?: { time: number; amount: number }[];
+  totalTime?: number;
+  maxRain?: number;
   polygon: { type: "Polygon"; coordinates: [number, number][][] };
 }
 
