@@ -42,9 +42,83 @@ def _rain_series(rainfall):
     return [(0.0, rate), (dur, rate), (dur + 0.01, 0.0)]
 
 
+def _zone_regimes(rainfall, base_series):
+    """Per-zone flat (hours, mm/hr) regimes. Returns ([(name, series)], zones).
+
+    Zoneless -> ([], []) so the legacy single-gage output is untouched.
+    Zone rate is absolute (rate as-is; total spread over the base duration).
+    """
+    try:
+        from app.services.rainfall_zones import parse_zones
+    except Exception:
+        return [], []
+    try:
+        zones, _ = parse_zones(rainfall or {})
+    except Exception:
+        return [], []
+    if not zones:
+        return [], []
+    try:
+        _nz = [(t, v) for t, v in (base_series or []) if float(v) != 0.0]
+        _T = float(_nz[-1][0]) if _nz else float((base_series or [(0.0, 0.0)])[-1][0])
+        _T = max(0.25, _T)
+    except Exception:
+        _T = 1.0
+    out = []
+    for zi, z in enumerate(zones):
+        try:
+            amt = float(z.get("amount", 0.0))
+            zr = amt if str(z.get("unit", "rate")) == "rate" else amt / _T
+        except Exception:
+            zr = 0.0
+        out.append(("RAIN_Z%d" % zi, [(0.0, zr), (_T, zr), (_T + 0.01, 0.0)]))
+    return out, zones
+
+
+def _subcatch_gage(d, zones):
+    """Gage name for a drain: zone containing the outlet midpoint wins (RGZ{i})."""
+    if not zones:
+        return "RG1"
+    try:
+        from app.services.rainfall_zones import zone_at
+    except Exception:
+        return "RG1"
+    try:
+        mx = (float(d.get("x0")) + float(d.get("x1"))) / 2.0
+        my = (float(d.get("y0")) + float(d.get("y1"))) / 2.0
+    except Exception:
+        return "RG1"
+    try:
+        hit = zone_at(mx, my, zones)
+        if hit is None:
+            return "RG1"
+        for zi, z in enumerate(zones):
+            if str(z.get("id")) == str(hit.get("id")):
+                return "RGZ%d" % zi
+    except Exception:
+        pass
+    return "RG1"
+
+
+def _stamp_lines(name, series):
+    """SWMM TIMESERIES rows for one series (legacy RAIN format)."""
+    prev_min = -1
+    stamped = []
+    for t, v in (series or []):
+        m = int(float(t) * 60)
+        if m <= prev_min:
+            m = prev_min + 5
+        prev_min = m
+        stamped.append((m, float(v)))
+    if stamped and stamped[-1][1] != 0.0:
+        stamped.append((stamped[-1][0] + 5, 0.0))
+    return ["%s  %02d:%02d:00  %.2f" % (name, m // 60, m % 60, v) for m, v in stamped]
+
+
 def build_inp(drains, rainfall, bbox, out_path):
     drains = list(drains or [])
     series = _rain_series(rainfall)
+    zone_series, zones = _zone_regimes(rainfall, series)
     end_h = series[-1][0] + 1.0
 
     def hms(h):
@@ -60,8 +134,11 @@ def build_inp(drains, rainfall, bbox, out_path):
          "END_TIME             " + hms(end_h), "WET_STEP             00:05:00",
          "DRY_STEP             01:00:00", "ROUTING_STEP         30",
          "REPORT_STEP          00:05:00", "ALLOW_PONDING        YES",
-         "[RAINGAGES]", "RG1  INTENSITY 0:05 1.0 TIMESERIES RAIN",
-         "[JUNCTIONS]"]
+         "[RAINGAGES]", "RG1  INTENSITY 0:05 1.0 TIMESERIES RAIN"]
+    for _zs_name, _zs_series in zone_series:
+        L.append("%s  INTENSITY 0:05 1.0 TIMESERIES %s"
+                 % (_zs_name.replace("RAIN_Z", "RGZ", 1), _zs_name))
+    L.append("[JUNCTIONS]")
     for i, d in enumerate(drains):
         z0 = float(d.get("z0", 10.0))
         z1 = float(d.get("z1", z0 - 1.0))
@@ -89,21 +166,13 @@ def build_inp(drains, rainfall, bbox, out_path):
         L.append("C%d  RECT_OPEN  %.1f  %.1f  0  0  1" % (i, DEPTH_M, WIDTH_M))
         L.append("CX%d  RECT_OPEN  %.1f  %.1f  0  0  1" % (i, DEPTH_M, WIDTH_M))
     L.append("[TIMESERIES]")
-    prev_min = -1
-    stamped = []
-    for t, v in series:
-        m = int(float(t) * 60)
-        if m <= prev_min:
-            m = prev_min + 5
-        prev_min = m
-        stamped.append((m, float(v)))
-    if stamped and stamped[-1][1] != 0.0:
-        stamped.append((stamped[-1][0] + 5, 0.0))
-    for m, v in stamped:
-        L.append("RAIN  %02d:%02d:00  %.2f" % (m // 60, m % 60, v))
+    L.extend(_stamp_lines("RAIN", series))
+    for _zs_name, _zs_series in zone_series:
+        L.extend(_stamp_lines(_zs_name, _zs_series))
     L.append("[SUBCATCHMENTS]")
-    for i in range(len(drains)):
-        L.append("S%d  RG1  J%d_UP  0.5  60  100  0.5  0" % (i, i))
+    for i, d in enumerate(drains):
+        _g = _subcatch_gage(d if isinstance(d, dict) else {}, zones)
+        L.append("S%d  %s  J%d_UP  0.5  60  100  0.5  0" % (i, _g, i))
     L.append("[SUBAREAS]")
     for i in range(len(drains)):
         L.append("S%d  0.02  0.02  0.02  5  0  OUTLET  100" % i)

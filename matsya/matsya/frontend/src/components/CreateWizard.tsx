@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react"
 import type { Simulation } from "../types/simulation"
+import type { RainfallZone } from "../types/simulation"
 import { API_BASE } from "../hooks/useSimulation"
 import RainfallGraph from "./RainfallGraph"
+import ZoneRain from "./ZoneRain"
 import { randomPreset } from "../utils/rainfall"
 import HydroBadge from "./HydroBadge"
 import {
@@ -94,6 +96,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
   const [maxRain, setMaxRain] = useState(String(editSim?.rainfall?.maxRain ?? "100"))
   const [unit, setUnit] = useState<"rate"|"total">(editSim?.rainfall?.unit === "total" ? "total" : "rate")
   const [points, setPoints] = useState<{time:number,amount:number}[]>(editSim?.rainfall?.points ?? [{time:0,amount:0},{time:3,amount:50}])
+  const [zones, setZones] = useState<RainfallZone[]>(editSim?.rainfall?.zones ?? [])
   const [cfl, setCfl] = useState(String((editSim as any)?.parameters?.cfl ?? "0.7"))
   const [initialFill, setInitialFill] = useState(String((editSim as any)?.parameters?.initialFillPct ?? "75"))
   const [search, setSearch] = useState("")
@@ -123,6 +126,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
       setMaxRain(String(editSim.rainfall?.maxRain ?? "100"))
       setUnit(editSim.rainfall?.unit === "total" ? "total" : "rate")
       setPoints(editSim.rainfall?.points ?? [{time:0,amount:0},{time:3,amount:50}])
+      setZones(editSim.rainfall?.zones ?? [])
       setInitialFill(String((editSim as any)?.parameters?.initialFillPct ?? "75"))
     }
   },[editSim])
@@ -369,7 +373,7 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
       const payload: any = {
         name: name.trim(),
         area: { bbox, crs: "EPSG:4326", polygon: polygon || undefined },
-        rainfall: isVariable ? { mode:"variable", totalTime: parseFloat(totalTime), maxRain: parseFloat(maxRain), unit, points } : { mode:"constant", rateMmHr: parseFloat(rate), durationHr: parseFloat(duration), constantRate: parseFloat(rate) },
+        rainfall: isVariable ? { mode:"variable", totalTime: parseFloat(totalTime), maxRain: parseFloat(maxRain), unit, points, zones: zones.length ? zones : undefined } : { mode:"constant", rateMmHr: parseFloat(rate), durationHr: parseFloat(duration), constantRate: parseFloat(rate), zones: zones.length ? zones : undefined },
         parameters: { cfl: parseFloat(cfl) || 0.7, initialFillPct: Math.min(100, Math.max(0, parseFloat(initialFill) || 75)) }
       }
       let res: Response
@@ -737,6 +741,8 @@ export default function CreateWizard({ open, onClose, onCreated, editSim }: Prop
                   <p className="text-[11px] text-slate-400">Points: {points.length} • Smooth spline y=spline(x) • Time on x (0→{totalTime}hr), Amount on y (0→{maxRain}) • Drag to move, double-click to delete, click to add.</p>
                 </div>
               )}
+
+              <ZoneRain zones={zones} onChange={setZones} bbox={bbox} />
 
               <div className="space-y-2 border border-slate-800 rounded-xl p-4 bg-slate-950/60 text-xs">
                 <div className="flex items-center justify-between py-1 border-b border-slate-800/80">

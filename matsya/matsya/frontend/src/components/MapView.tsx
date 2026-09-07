@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react"
 import type { Simulation } from "../types/simulation"
+import { ZONE_PALETTE } from "../types/simulation"
 import "leaflet/dist/leaflet.css"
 import { drainColor } from "../utils/hydro"
 
@@ -188,6 +189,29 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
             interactive: false
           }).addTo(map)
           layerRefs.current.aoiBoundary = aoiBoundary
+        } catch {}
+        // Rainfall zones overlay — spatial rain input footprints, palette per index
+        try {
+          const zones = (simulation as any)?.rainfall?.zones
+          if (Array.isArray(zones) && zones.length) {
+            const zg = (L as any).layerGroup()
+            zones.slice(0, 12).forEach((z: any, i: number) => {
+              try {
+                const ring = z?.polygon?.coordinates?.[0]
+                if (!Array.isArray(ring) || ring.length < 4) return
+                const latlngs = ring.map((c: any) => [c[1], c[0]])
+                const color = ZONE_PALETTE[i % ZONE_PALETTE.length]
+                const poly = (L as any).polygon(latlngs, {
+                  color, weight: 2, dashArray: "4, 3",
+                  fillColor: color, fillOpacity: 0.25,
+                })
+                poly.bindTooltip(`${z.id ?? "z" + (i + 1)}: ${z.amount} ${z.unit === "total" ? "mm total" : "mm/hr"}`, { sticky: true })
+                poly.addTo(zg)
+              } catch {}
+            })
+            zg.addTo(map)
+            layerRefs.current.zoneLayers = zg
+          }
         } catch {}
         map.on("click", (e:any)=>{
           const lat=e.latlng.lat, lon=e.latlng.lng

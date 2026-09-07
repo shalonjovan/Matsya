@@ -63,4 +63,21 @@ describe("CreateWizard", ()=>{
     expect(body.name).toBe("filltest")
     expect(body.parameters.initialFillPct).toBe(40)
   })
+
+  it("shows the spatial rain zones section on step 3", ()=>{
+    render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} />)
+    fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
+    expect(screen.getByText(/Spatial rain zones/)).toBeInTheDocument()
+    expect(screen.getByTestId("zone-amount")).toBeInTheDocument()
+    expect(screen.getByTestId("zone-map")).toBeInTheDocument()
+  })
+
+  it("restores edit-sim zones into the wizard", ()=>{
+    const sim: any = { id:"9", name:"z", area:{bbox:[80.15,13.08,80.20,13.13]},
+      rainfall:{rateMmHr:10, durationHr:1, zones:[{id:"z1", amount:200, unit:"rate",
+        polygon:{type:"Polygon", coordinates:[[[80.15,13.08],[80.175,13.08],[80.175,13.13],[80.15,13.13],[80.15,13.08]]]}}]} }
+    render(<CreateWizard open={true} onClose={()=>{}} onCreated={()=>{}} editSim={sim} />)
+    fireEvent.click(screen.getByLabelText("Step 3: Datasets"))
+    expect(screen.getByText(/200.*mm\/hr/i)).toBeInTheDocument()
+  })
 })

@@ -40,6 +40,26 @@ def _grid_transform(bbox, width, height):
     return from_bounds(minLon, minLat, maxLon, maxLat, width, height)
 
 
+def zone_masks(zones, bbox, width, height):
+    """Bool mask per zone in list order (last wins at paint time). Never raises."""
+    import numpy as np
+    from rasterio.features import rasterize
+    masks = []
+    try:
+        transform = _grid_transform(bbox, width, height)
+    except Exception:
+        return [np.zeros((height, width), dtype=bool) for _ in (zones or [])]
+    for z in (zones or []):
+        try:
+            burned = rasterize([((z or {}).get("polygon"), 1)], out_shape=(height, width),
+                               transform=transform, fill=0, dtype="uint8")
+            masks.append(np.asarray(burned).astype(bool) if burned is not None
+                         else np.zeros((height, width), dtype=bool))
+        except Exception:
+            masks.append(np.zeros((height, width), dtype=bool))
+    return masks
+
+
 def paint_rate_grid(base_rate, zones, bbox, width, height, duration_hr):
     """Per-cell mm/hr grid. Zones painted in list order (last wins). Total unit -> rate."""
     import numpy as np

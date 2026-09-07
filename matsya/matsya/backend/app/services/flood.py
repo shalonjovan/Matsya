@@ -666,6 +666,24 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         dt_tmp = duration * 3600 / steps if steps > 0 else 3600
         total_rain = sum(rates) * dt_tmp / 3600.0  # mm
 
+    # rainfall zones (spatial rain): parsed once, painted per step. Zoneless
+    # requests take the legacy scalar path below bit-for-bit.
+    from app.services.rainfall_zones import parse_zones
+    try:
+        _rfz = rainfall if isinstance(rainfall, dict) else (rainfall.model_dump(mode="json") if hasattr(rainfall, "model_dump") else {})
+    except Exception:
+        _rfz = {}
+    zone_list, _zone_dropped = parse_zones(_rfz if isinstance(_rfz, dict) else {})
+    has_zones = len(zone_list) > 0
+    zone_rates: list = []
+    if has_zones:
+        for _z in zone_list:
+            try:
+                zone_rates.append(float(_z.get("amount", 0.0)) if str(_z.get("unit", "rate")) == "rate"
+                                  else float(_z.get("amount", 0.0)) / max(1e-9, float(duration)))
+            except Exception:
+                zone_rates.append(0.0)
+
     # get DEM
     dem = _dem_for_bbox(bbox, width, height)
     # ensure float array
@@ -768,6 +786,14 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         minLon, minLat, maxLon, maxLat = (80.15, 13.08, 80.20, 13.13)
     dlon = (maxLon - minLon) / max(1, width)
     dlat = (maxLat - minLat) / max(1, height)
+    # zone masks, precomputed once (paint order = list order, last wins)
+    zone_masks: list = []
+    if has_zones:
+        try:
+            from app.services.rainfall_zones import zone_masks as _zone_masks
+            zone_masks = _zone_masks(zone_list, list(bbox), width, height)
+        except Exception:
+            zone_masks = [np.zeros((height, width), dtype=bool) for _ in zone_list]
     swmm_info: dict = {"coupled": False, "node_flood": {}, "drains": []}
     try:
         swmm_info = _swmm_node_floods(bbox, rainfall)
@@ -853,14 +879,35 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         wb_initial_vol = 0.0
     snapshots = []
     flat_size = width * height
+    rain_vol_accum = 0.0  # gridded rain volume (zoned path); legacy scalar otherwise
     for i in range(steps):
         try:
             rate_i = float(rates[i]) if i < len(rates) else float(rates[-1] if rates else 0.0)
         except Exception:
             rate_i = 50.0
-        rain_inc_m = rate_i * dt / 3600.0 / 1000.0  # m over whole bbox
-        if rain_inc_m:
-            surface += rain_inc_m
+        rate_grid = None
+        if has_zones:
+            # zoned: base rate everywhere, zone rates painted last-wins
+            try:
+                rate_grid = np.full((height, width), rate_i, dtype=np.float64)
+                for _zm, _zr in zip(zone_masks, zone_rates):
+                    try:
+                        if _zm is not None and bool(np.any(_zm)):
+                            rate_grid[_zm] = float(_zr)
+                    except Exception:
+                        continue
+                _rain_inc_grid = rate_grid * dt / 3600.0 / 1000.0
+                if float(np.sum(_rain_inc_grid)) != 0.0:
+                    surface += _rain_inc_grid
+                rain_inc_m = float(np.mean(rate_grid))  # representative scalar
+                step_rain_vol = float(np.sum(_rain_inc_grid)) * cell_area
+                rain_vol_accum += float(np.sum(_rain_inc_grid)) * cell_area
+            except Exception:
+                rate_grid = None
+        if rate_grid is None:
+            rain_inc_m = rate_i * dt / 3600.0 / 1000.0  # m over whole bbox
+            if rain_inc_m:
+                surface += rain_inc_m
         # D8 downhill pass (vectorized, volume-preserving)
         try:
             if ds_flat is not None and valid_ds is not None and np.any(valid_ds):
@@ -875,7 +922,10 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
             pass
         # drains: take 30% of this step's rain volume, route to wb/sea, surcharge locally
         surcharge_grid = np.zeros_like(surface)
-        step_rain_vol = rain_inc_m * area_m2
+        if rate_grid is None:
+            step_rain_vol = rain_inc_m * area_m2
+            if has_zones:
+                rain_vol_accum += float(step_rain_vol)
         n_drains = max(1, len(drains or []))
         drain_vol_total = step_rain_vol * 0.3
         if not swmm_coupled:
@@ -930,10 +980,29 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         if drains:
             per_drain_vol = drain_vol_total / n_drains
             per_drain_q = per_drain_vol / dt if dt else 0.0
+            # zoned: split the drain take proportionally to each drain's local rain
+            zone_shares = None
+            if has_zones and rate_grid is not None and drains:
+                try:
+                    _sh = []
+                    for _dd in (drains or []):
+                        try:
+                            _sh.append(float(rate_grid[int(_dd["row"]), int(_dd["col"])]))
+                        except Exception:
+                            _sh.append(float(rate_i))
+                    _st = float(sum(_sh))
+                    zone_shares = [(_s / _st) if _st > 0 else 1.0 / max(1, len(_sh)) for _s in _sh] if _sh else None
+                except Exception:
+                    zone_shares = None
             for di, d in enumerate(drains):
                 try:
                     qcap = drain_qcaps[di] if di < len(drain_qcaps) else 0.6
                     qin = float(per_drain_q)
+                    if zone_shares is not None and di < len(zone_shares):
+                        try:
+                            qin = float(drain_vol_total * zone_shares[di]) / dt if dt else 0.0
+                        except Exception:
+                            pass
                     # portion that fits goes toward wb (if any), excess surcharges
                     q_fit = min(qin, qcap)
                     q_excess = max(0.0, qin - qcap)
@@ -980,11 +1049,21 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         # direct rainfall onto lake surfaces goes straight into storage
         # (rain falls on water too); compensate the surface grid so mass closes
         direct_rain_vol = 0.0
-        if rain_inc_m and wb_objs:
+        if (rain_inc_m or has_zones) and wb_objs:
             try:
-                for wb in wb_objs:
+                for wi, wb in enumerate(wb_objs):
                     try:
-                        q_rain = rain_inc_m * float(getattr(wb, "area_m2", 0.0)) / dt if dt else 0.0
+                        _rlocal = rain_inc_m
+                        if has_zones and rate_grid is not None:
+                            try:
+                                _g = (wb_infos or [])[wi].get("geometry") if wi < len(wb_infos or []) else None
+                                _cx = float(_g.centroid.x); _cy = float(_g.centroid.y)
+                                _cc = max(0, min(width - 1, int((_cx - minLon) / dlon))) if dlon else 0
+                                _rr = max(0, min(height - 1, int((maxLat - _cy) / dlat))) if dlat else 0
+                                _rlocal = float(rate_grid[_rr, _cc]) * dt / 3600.0 / 1000.0  # mm/hr -> m
+                            except Exception:
+                                pass
+                        q_rain = _rlocal * float(getattr(wb, "area_m2", 0.0)) / dt if dt else 0.0
                     except Exception:
                         q_rain = 0.0
                     if q_rain > 0:
@@ -1076,7 +1155,10 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
 
     # mass balance over full event (Δ storage vs rain; excludes display noise/lift double-count)
     try:
-        rain_vol_total = float(total_rain) / 1000.0 * area_m2 if total_rain else 0.0
+        if has_zones:
+            rain_vol_total = float(rain_vol_accum)
+        else:
+            rain_vol_total = float(total_rain) / 1000.0 * area_m2 if total_rain else 0.0
     except Exception:
         rain_vol_total = 0.0
     try:
@@ -1146,9 +1228,32 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         pass
 
     try:
-        total_rain_f = float(total_rain) if total_rain is not None else 0.0
+        if has_zones:
+            total_rain_f = float(rain_vol_accum) / area_m2 * 1000.0 if area_m2 else 0.0
+        else:
+            total_rain_f = float(total_rain) if total_rain is not None else 0.0
     except Exception:
         total_rain_f = 0.0
+    # per-zone rain summary (area share from precomputed masks)
+    zone_stats: list = []
+    if has_zones:
+        try:
+            for _zi, _z in enumerate(zone_list):
+                try:
+                    _m = zone_masks[_zi] if _zi < len(zone_masks) else None
+                    _frac = float(np.mean(_m)) if _m is not None else 0.0
+                except Exception:
+                    _frac = 0.0
+                zone_stats.append({
+                    "index": int(_zi),
+                    "id": str(_z.get("id", "z%d" % _zi)),
+                    "amountMm": float(_z.get("amount", 0.0)),
+                    "unit": str(_z.get("unit", "rate")),
+                    "rateMmHr": float(zone_rates[_zi]) if _zi < len(zone_rates) else 0.0,
+                    "areaKm2": round(float(area_m2 * _frac / 1e6), 4),
+                })
+        except Exception:
+            zone_stats = []
     stats = {
         "maxDepth": maxDepth,
         "floodedArea": floodedArea,
@@ -1171,6 +1276,7 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
         "riverAssumed": int(river_assumed),
         "riverCount": int(len(river_reaches)),
         "totalRainMm": total_rain_f,
+        "zones": zone_stats,
         "initialFillPct": round(fill_frac * 100.0, 1),
         "areaKm2": float(area_m2 / 1e6),
     }

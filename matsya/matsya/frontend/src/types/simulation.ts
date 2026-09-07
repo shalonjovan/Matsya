@@ -6,6 +6,18 @@ export interface Area {
   polygon?: any;
 }
 
+export interface RainfallZone {
+  id: string;
+  amount: number;
+  unit: "rate" | "total";
+  polygon: { type: "Polygon"; coordinates: [number, number][][] };
+}
+
+export const ZONE_PALETTE = ["#22d3ee", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#fb7185",
+  "#60a5fa", "#f97316", "#2dd4bf", "#e879f9", "#a3e635", "#facc15"];
+
+export const MAX_RAIN_ZONES = 12;
+
 export interface Rainfall {
   rateMmHr?: number | null;
   durationHr?: number | null;
@@ -16,6 +28,7 @@ export interface Rainfall {
   unit?: "rate" | "total" | null;
   points?: {time: number, amount: number}[] | null;
   curve?: {values: number[], method: string, unit: string} | null;
+  zones?: RainfallZone[] | null;
 }
 
 export interface Terrain {

@@ -261,6 +261,24 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
             _firstFlooded, _peak, _duration = None, None, None
     except Exception:
         _firstFlooded, _peak, _duration = "00:05", "01:20", "2h 10m"
+    # rainfall zone id at the query point (spatial rain), else None
+    try:
+        from app.services.rainfall_zones import parse_zones, zone_at
+        _rf = None
+        if isinstance(sim, dict):
+            _rf = sim.get("rainfall")
+        else:
+            _rf = getattr(sim, "rainfall", None)
+            if _rf is not None and not isinstance(_rf, dict) and hasattr(_rf, "model_dump"):
+                try:
+                    _rf = _rf.model_dump(mode="json")
+                except Exception:
+                    _rf = None
+        _rz, _ = parse_zones(_rf if isinstance(_rf, dict) else {})
+        _hit = zone_at(lon, lat, _rz) if _rz else None
+        rainfallZone = _hit.get("id") if isinstance(_hit, dict) else None
+    except Exception:
+        rainfallZone = None
     return {
         "lat": lat, "lon": lon,
         "elevation": elevation,
@@ -272,6 +290,7 @@ def point_query(lat: float, lon: float, time: int, sim: Any) -> Dict[str,Any]:
         "peak": _peak,
         "duration": _duration,
         "rainfall": getattr(getattr(sim, "rainfall", None), "rateMmHr", 50) if hasattr(sim,"rainfall") else 50,  # type: ignore[attr-defined]
+        "rainfallZone": rainfallZone,
         "nearestDrain": "D-42 (12m)",
         "nearestRiver": "Adyar (450m)",
         "road": "GST Road",
