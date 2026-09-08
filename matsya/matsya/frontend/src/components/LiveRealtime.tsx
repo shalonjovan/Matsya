@@ -3,14 +3,16 @@ import { Radio, AlertTriangle, Droplets, Users } from "lucide-react"
 
 interface Props {
   origin: { lat: number; lon: number } | null
+  onReported?: () => void
 }
 
-export default function LiveRealtime({ origin }: Props) {
+export default function LiveRealtime({ origin, onReported }: Props) {
   const [status, setStatus] = useState<any>(null)
   const [reports, setReports] = useState<any[]>([])
   const [lat, setLat] = useState(origin?.lat != null ? String(origin.lat) : "")
   const [lon, setLon] = useState(origin?.lon != null ? String(origin.lon) : "")
   const [depth, setDepth] = useState("30")
+  const [radius, setRadius] = useState("0")
   const [kind, setKind] = useState("flooded")
   const [note, setNote] = useState("")
   const [saving, setSaving] = useState(false)
@@ -45,8 +47,13 @@ export default function LiveRealtime({ origin }: Props) {
 
   const submit = async () => {
     const olat = parseFloat(lat), olon = parseFloat(lon), d = parseFloat(depth)
+    const r = parseFloat(radius)
     if (!isFinite(olat) || !isFinite(olon) || !isFinite(d) || d < 0 || d > 500) {
       setError("Enter a valid origin and depth 0–500 cm — or click the map first.")
+      return
+    }
+    if (!isFinite(r) || r < 0 || r > 1000) {
+      setError("Radius must be 0–1000 m (0 = exact point).")
       return
     }
     setSaving(true)
@@ -56,11 +63,12 @@ export default function LiveRealtime({ origin }: Props) {
       const res = await fetch("/api/v1/crowd/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: olat, lon: olon, depthCm: d, kind, note }),
+        body: JSON.stringify({ lat: olat, lon: olon, depthCm: d, radiusM: r, kind, note }),
       })
       if (!res.ok) throw new Error(await res.text())
       setDone("Reported — applied to the live sim.")
       setNote("")
+      onReported?.()
       loadReports()
     } catch (e: any) {
       setError(e?.message ?? "Report failed.")
@@ -131,6 +139,11 @@ export default function LiveRealtime({ origin }: Props) {
             <option value="drain">Drain point</option>
             <option value="other">Other</option>
           </select>
+        </label>
+        <label className="text-xs text-slate-300 col-span-2">
+          Radius (m, 0 = exact point)
+          <input data-testid="crowd-radius" type="number" value={radius} onChange={e => setRadius(e.target.value)}
+            className="mt-1 w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-white font-mono text-xs focus:border-cyan-500 focus:outline-none" />
         </label>
       </div>
       <input data-testid="crowd-note" value={note} onChange={e => setNote(e.target.value)} placeholder="Note (optional)"

@@ -99,3 +99,53 @@ def test_zero_report_clears_cell():
         assert float(arr[rr, cc]) == 0.0  # authoritative dry observation wins
     finally:
         _clean()
+
+
+def test_radius_report_affects_disc():
+    import numpy as np
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.services.simulation_store import store
+    from app.services.realtime.manager import REALTIME_ID
+    from app.services.snapshots import load_snapshots
+    from app.services.analysis import _lat_lon_to_row_col
+    _realtime()
+    try:
+        c = TestClient(app)
+        r = c.post("/api/v1/crowd/reports", json={"lat": 13.10, "lon": 80.17, "depthCm": 100, "kind": "flooded", "radiusM": 150})
+        assert r.status_code == 201, r.text
+        assert c.post("/api/v1/crowd/reports", json={"lat": 13.10, "lon": 80.17, "depthCm": 5000}).status_code == 422
+        assert c.post("/api/v1/crowd/reports", json={"lat": 13.10, "lon": 80.17, "depthCm": 10, "radiusM": 5000}).status_code == 422
+        snaps, _, bbox = load_snapshots(store.get(REALTIME_ID))
+        arr = np.asarray(snaps[-1])
+        rows, cols = arr.shape
+        rr, cc = _lat_lon_to_row_col(13.10, 80.17, list(bbox), rows, cols)
+        # disc of ~150m at ~30m cells covers several cells around center
+        r0, r1 = max(0, rr - 6), min(rows, rr + 7)
+        c0, c1 = max(0, cc - 6), min(cols, cc + 7)
+        assert float(arr[r0:r1, c0:c1].max()) >= 0.9
+        # far corner untouched by this report (stays drizzle-level)
+        assert float(arr[0, 0]) < 0.5
+    finally:
+        _clean()
+
+
+def test_overlay_rerenders_png_tiles():
+    import numpy as np
+    from PIL import Image
+    import io
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.services.simulation_store import store
+    from app.services.realtime.manager import REALTIME_ID
+    _realtime()
+    try:
+        c = TestClient(app)
+        before = c.get(f"/api/simulations/{REALTIME_ID}/flood?time=0").content
+        c.post("/api/v1/crowd/reports", json={"lat": 13.10, "lon": 80.17, "depthCm": 300, "kind": "flooded", "radiusM": 200})
+        after = c.get(f"/api/simulations/{REALTIME_ID}/flood?time=0").content
+        assert before != after  # tile reflects the pin, no stale flash
+        img = Image.open(io.BytesIO(after))
+        assert img.mode == "RGBA"
+    finally:
+        _clean()

@@ -324,7 +324,8 @@ def create_crowd_report(body: dict):
     if _lat is None or _lon is None or _depth is None:
         raise HTTPException(422, "lat/lon/depthCm are required")
     try:
-        rep = add_crowd_report(_sid, _lat, _lon, _depth, _kind, _note)
+        rep = add_crowd_report(_sid, _lat, _lon, _depth, _kind, _note,
+                               float((body or {}).get("radiusM", 0.0) or 0.0))
     except FileNotFoundError:
         raise HTTPException(404, "simulation not found")
     except ValueError as e:

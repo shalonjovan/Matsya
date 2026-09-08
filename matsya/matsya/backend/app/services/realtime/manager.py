@@ -23,18 +23,21 @@ def _utcnow():
         return datetime.now()
 
 
-def add_crowd_report(sim_id, lat, lon, depth_cm, kind="other", note=""):
+def add_crowd_report(sim_id, lat, lon, depth_cm, kind="other", note="", radius_m=0.0):
     """Validate + persist a crowd report. Returns report dict. Raises ValueError."""
     from app.services.simulation_store import store
     try:
         lat, lon = float(lat), float(lon)
         depth_cm = float(depth_cm)
+        radius_m = float(radius_m or 0.0)
     except Exception:
-        raise ValueError("lat/lon/depthCm must be numbers")
+        raise ValueError("lat/lon/depthCm/radiusM must be numbers")
     if kind not in CROWD_KINDS:
         raise ValueError(f"kind must be one of {list(CROWD_KINDS)}")
     if not (0 <= depth_cm <= 500):
         raise ValueError("depthCm must be 0-500")
+    if not (0 <= radius_m <= 1000):
+        raise ValueError("radiusM must be 0-1000")
     sim = store.get(sim_id)  # FileNotFoundError propagates -> 404
     try:
         _bb = sim.get("area", {}).get("bbox") if isinstance(sim, dict) else sim.area.bbox
@@ -45,7 +48,7 @@ def add_crowd_report(sim_id, lat, lon, depth_cm, kind="other", note=""):
         raise ValueError("report point is outside the simulation domain")
     import uuid
     rep = {"id": uuid.uuid4().hex[:12], "lat": lat, "lon": lon, "depthCm": depth_cm,
-           "kind": kind, "note": str(note or "")[:280],
+           "kind": kind, "note": str(note or "")[:280], "radiusM": radius_m,
            "createdAt": _utcnow().isoformat()}
     try:
         _res = sim.get("results", {}) if isinstance(sim, dict) else (sim.results or {})
@@ -110,20 +113,50 @@ def apply_crowd_overlay(sim_id):
     applied = 0
     arrs = [_np.asarray(s, dtype=float) for s in snaps]
     rows, cols = arrs[0].shape
+    try:
+        minLon, minLat, maxLon, maxLat = [float(x) for x in bbox]
+        _mx = (maxLon - minLon) / max(1, cols)
+        _my = (maxLat - minLat) / max(1, rows)
+        _lat0 = (minLat + maxLat) / 2.0
+        import math as _math
+        _kx = 111320.0 * max(0.2, _math.cos(_math.radians(_lat0)))
+    except Exception:
+        _mx, _my, _kx = 0.0, 0.0, 111320.0
     for r in reps:
         try:
-            _rr, _cc = _lat_lon_to_row_col(float(r["lat"]), float(r["lon"]), list(bbox), rows, cols)
+            _rlat, _rlon = float(r["lat"]), float(r["lon"])
+            _rr, _cc = _lat_lon_to_row_col(_rlat, _rlon, list(bbox), rows, cols)
+            # disc cells within radiusM (haversine approx on the grid)
+            try:
+                _rad = max(0.0, float(r.get("radiusM", 0.0) or 0.0))
+            except Exception:
+                _rad = 0.0
+            _cells = [(_rr, _cc)]
+            if _rad > 0 and _mx > 0 and _my > 0:
+                import math as _math2
+                _dr = int(_rad / (111320.0 * _my)) + 1
+                _dc = int(_rad / (_kx * _mx)) + 1
+                for _i in range(max(0, _rr - _dr), min(rows, _rr + _dr + 1)):
+                    for _j in range(max(0, _cc - _dc), min(cols, _cc + _dc + 1)):
+                        try:
+                            _dy = (_i - _rr) * _my * 111320.0
+                            _dx = (_j - _cc) * _mx * _kx
+                            if _math2.hypot(_dx, _dy) <= _rad:
+                                _cells.append((_i, _j))
+                        except Exception:
+                            continue
             _rep_m = float(r["depthCm"]) / 100.0
             if _rep_m <= 0:
-                # authoritative dry observation: clear the cell while the report lives
-                # (max() below could never lower it — reported dry was a no-op)
+                # authoritative dry observation: clear the disc while the report lives
                 for a in arrs:
-                    a[_rr, _cc] = 0.0
+                    for (_i, _j) in _cells:
+                        a[_i, _j] = 0.0
             else:
                 _target = _rep_m * (0.5 ** (float(r.get("ageHrs", 0.0)) / CROWD_HALF_LIFE_HRS))
                 for a in arrs:
-                    if _target > float(a[_rr, _cc]):
-                        a[_rr, _cc] = _target
+                    for (_i, _j) in _cells:
+                        if _target > float(a[_i, _j]):
+                            a[_i, _j] = _target
             applied += 1
         except Exception:
             continue
@@ -131,6 +164,21 @@ def apply_crowd_overlay(sim_id):
         _npy = store.base_path / f"{sim_id}" / "flood" / "snapshots.npy"
         _npy.parent.mkdir(parents=True, exist_ok=True)
         _np.save(str(_npy), _np.array(arrs, dtype="float32"))
+    except Exception:
+        pass
+    # re-render stored tiles so the map stops flashing stale colors
+    try:
+        from app.services.flood import render_depth_png
+        _f = sim.get("flood") if isinstance(sim, dict) else getattr(sim, "flood", None)
+        _st = (_f.get("stats") if isinstance(_f, dict) else getattr(_f, "stats", None)) or {}
+        if not isinstance(_st, dict) and hasattr(_st, "model_dump"):
+            _st = _st.model_dump(mode="json")
+        _fdir = store.base_path / f"{sim_id}" / "flood"
+        for _k, _a in enumerate(arrs):
+            try:
+                (_fdir / f"{_k}.png").write_bytes(render_depth_png(_a, _st, "blue"))
+            except Exception:
+                continue
     except Exception:
         pass
     return {"applied": applied, "pruned": 0}

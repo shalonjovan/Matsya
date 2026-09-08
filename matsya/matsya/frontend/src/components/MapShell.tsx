@@ -37,6 +37,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<"LAYERS" | "INSPECTOR" | "IMPACTS" | "REPORTS" | "ROUTES" | "LIVE" | "ALL">("LAYERS")
   const [route, setRoute] = useState<{ safest: [number, number][]; fastest: [number, number][] | null; dest: { lat: number; lon: number } } | null>(null)
+  const [floodNonce, setFloodNonce] = useState(0)
 
   const [layers, setLayers] = useState<any>({
     depth:{visible:true,opacity:0.8},
@@ -90,6 +91,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
               onPointSelect={handlePointSelect}
               onWaterbodySelect={handleWaterbodySelect}
               route={route}
+              floodNonce={floodNonce}
             />
           </div>
 
@@ -347,6 +349,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
               {(activeTab === "ALL" || activeTab === "LIVE") && (
                 <LiveRealtime
                   origin={selectedPoint ? { lat: selectedPoint.lat, lon: selectedPoint.lon } : null}
+                  onReported={() => setFloodNonce(n => n + 1)}
                 />
               )}
             </div>
