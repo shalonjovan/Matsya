@@ -70,7 +70,7 @@ def tick(now=None, source="dummy", bbox=None):
             "hydro": {"enabled": True, "version": "1.1", "waterbodyStates": states},
             "results": {"live": live_meta},
             "live": True,
-        })
+        }, background=False)  # tick runs the pipeline itself, no bg thread (avoids resurrects)
     else:
         sim = store.update(REALTIME_ID, {
             "name": "Live \u2014 Chennai",

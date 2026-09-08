@@ -29,3 +29,33 @@ app.include_router(flood_router)
 app.include_router(api_v1_router)
 @app.get("/api/health")
 def health(): return {"status":"ok","version":"0.1.0","engine":"anuga-mock"}
+
+
+@app.on_event("startup")
+async def _realtime_tick_loop():
+    """Background tick loop. Opt-in only (REALTIME_LOOP=1) so tests never loop."""
+    import os
+    if os.getenv("REALTIME_LOOP") != "1":
+        return
+    import asyncio
+    try:
+        _every = max(1, int(os.getenv("REALTIME_TICK_MIN", "15") or 15))
+    except Exception:
+        _every = 15
+
+    async def _loop():
+        while True:
+            try:
+                from app.services.realtime.manager import tick
+                tick()
+            except Exception:
+                pass
+            try:
+                await asyncio.sleep(_every * 60)
+            except Exception:
+                return
+
+    try:
+        asyncio.create_task(_loop())
+    except Exception:
+        pass
