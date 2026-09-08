@@ -10,13 +10,123 @@ REALTIME_ID = "realtime-chennai-01"
 WINDOW_HOURS = 12
 DEFAULT_BBOX = [80.15, 13.08, 80.20, 13.13]
 TICK_MINUTES = 15
+CROWD_KINDS = ("drain", "flooded", "other")
+CROWD_MAX = 200
+CROWD_TTL_HRS = 48
+CROWD_HALF_LIFE_HRS = 6.0
 
 
-def _now():
+def _utcnow():
     try:
         return datetime.now(timezone.utc)
     except Exception:
         return datetime.now()
+
+
+def add_crowd_report(sim_id, lat, lon, depth_cm, kind="other", note=""):
+    """Validate + persist a crowd report. Returns report dict. Raises ValueError."""
+    from app.services.simulation_store import store
+    try:
+        lat, lon = float(lat), float(lon)
+        depth_cm = float(depth_cm)
+    except Exception:
+        raise ValueError("lat/lon/depthCm must be numbers")
+    if kind not in CROWD_KINDS:
+        raise ValueError(f"kind must be one of {list(CROWD_KINDS)}")
+    if not (0 <= depth_cm <= 500):
+        raise ValueError("depthCm must be 0-500")
+    sim = store.get(sim_id)  # FileNotFoundError propagates -> 404
+    try:
+        _bb = sim.get("area", {}).get("bbox") if isinstance(sim, dict) else sim.area.bbox
+        minLon, minLat, maxLon, maxLat = [float(x) for x in _bb]
+    except Exception:
+        raise ValueError("simulation has no usable bbox")
+    if not (minLat <= lat <= maxLat and minLon <= lon <= maxLon):
+        raise ValueError("report point is outside the simulation domain")
+    import uuid
+    rep = {"id": uuid.uuid4().hex[:12], "lat": lat, "lon": lon, "depthCm": depth_cm,
+           "kind": kind, "note": str(note or "")[:280],
+           "createdAt": _utcnow().isoformat()}
+    try:
+        _res = sim.get("results", {}) if isinstance(sim, dict) else (sim.results or {})
+        _res = dict(_res) if isinstance(_res, dict) else {}
+    except Exception:
+        _res = {}
+    reps = [r for r in (_res.get("crowd") or []) if isinstance(r, dict)]
+    reps.append(rep)
+    reps = reps[-CROWD_MAX:]
+    try:
+        store.update(sim_id, {"results": {"crowd": reps}})
+    except Exception as e:
+        raise ValueError(f"persist failed: {e}")
+    return rep
+
+
+def list_crowd_reports(sim_id):
+    """Reports with ageHrs; prunes >48h old (persisted). Never raises."""
+    from app.services.simulation_store import store
+    try:
+        sim = store.get(sim_id)
+    except Exception:
+        return []
+    try:
+        _res = sim.get("results", {}) if isinstance(sim, dict) else (sim.results or {})
+        reps = [r for r in ((_res or {}).get("crowd") or []) if isinstance(r, dict)]
+    except Exception:
+        return []
+    now = _utcnow()
+    out, kept = [], []
+    for r in reps:
+        try:
+            _age = (now - datetime.fromisoformat(str(r.get("createdAt")))).total_seconds() / 3600.0
+            _age = max(0.0, _age)
+        except Exception:
+            _age = 0.0
+        if _age > CROWD_TTL_HRS:
+            continue
+        kept.append(r)
+        out.append({**r, "ageHrs": round(_age, 2)})
+    if len(kept) != len(reps):
+        try:
+            store.update(sim_id, {"results": {"crowd": kept}})
+        except Exception:
+            pass
+    return out
+
+
+def apply_crowd_overlay(sim_id):
+    """Pin reported depths onto snapshots (6h half-life decay). Returns summary."""
+    from app.services.simulation_store import store
+    from app.services.snapshots import load_snapshots
+    from app.services.analysis import _lat_lon_to_row_col
+    reps = list_crowd_reports(sim_id)
+    if not reps:
+        return {"applied": 0, "pruned": 0}
+    sim = store.get(sim_id)
+    snaps, _, bbox = load_snapshots(sim)
+    if not snaps:
+        return {"applied": 0, "pruned": 0}
+    import numpy as _np
+    applied = 0
+    arrs = [_np.asarray(s, dtype=float) for s in snaps]
+    rows, cols = arrs[0].shape
+    for r in reps:
+        try:
+            _rr, _cc = _lat_lon_to_row_col(float(r["lat"]), float(r["lon"]), list(bbox), rows, cols)
+            _target = float(r["depthCm"]) / 100.0 * (0.5 ** (float(r.get("ageHrs", 0.0)) / CROWD_HALF_LIFE_HRS))
+            for a in arrs:
+                if _target > float(a[_rr, _cc]):
+                    a[_rr, _cc] = _target
+            applied += 1
+        except Exception:
+            continue
+    try:
+        _npy = store.base_path / f"{sim_id}" / "flood" / "snapshots.npy"
+        _npy.parent.mkdir(parents=True, exist_ok=True)
+        _np.save(str(_npy), _np.array(arrs, dtype="float32"))
+    except Exception:
+        pass
+    return {"applied": applied, "pruned": 0}
 
 
 def _window(now):
@@ -27,7 +137,7 @@ def tick(now=None, source="dummy", bbox=None):
     """Rebuild the realtime sim from the feed window. Returns tick report."""
     from app.services.realtime.weather import get_source
     from app.services.simulation_store import store
-    now = now or _now()
+    now = now or _utcnow()
     bbox = list(bbox or DEFAULT_BBOX)
     w0, w1 = _window(now)
     feed = get_source(source).fetch(w0, w1, bbox)
@@ -96,6 +206,11 @@ def tick(now=None, source="dummy", bbox=None):
     except Exception as e:
         return {"simId": REALTIME_ID, "tickAt": now.isoformat(), "rainCells": len(zones),
                 "lakesApplied": len(states), "totalRainMm": None, "error": str(e)}
+    # re-apply crowd overlay (reports persist on the record across recomputes)
+    try:
+        apply_crowd_overlay(REALTIME_ID)
+    except Exception:
+        pass
     try:
         _st = sim.flood.stats if hasattr(sim, "flood") and sim.flood is not None else {}
         _total = (_st.get("totalRainMm") if isinstance(_st, dict) else getattr(_st, "totalRainMm", None))
