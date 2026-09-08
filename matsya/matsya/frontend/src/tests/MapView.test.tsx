@@ -17,6 +17,15 @@ describe("MapView",()=>{
     render(<MapView simulation={sim} time={0} />)
     await waitFor(()=> expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("/flood")))
   })
+  it("requests flood tiles in the selected palette", async()=>{
+    const sim:any={id:"1", area:{bbox:[80.15,13.08,80.20,13.13]}, flood:{floodUri:"/api/simulations/1/flood?time=0", stats:{maxDepth:0.5}}}
+    global.fetch = vi.fn((url)=>{
+      if(String(url).includes("/flood")) return Promise.resolve({ok:true, blob:()=>Promise.resolve(new Blob(["png"]))} as any)
+      return Promise.resolve({ok:true, json:()=>Promise.resolve({drains:{features:[]}, waterbodies:{features:[]}})} as any)
+    }) as any
+    render(<MapView simulation={sim} time={0} layers={{depth:{visible:true,opacity:0.6,palette:"greenred"}}} />)
+    await waitFor(()=> expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("palette=greenred")))
+  })
   it("does not strand the overlay on Completed sims with partial data", async()=>{
     const sim:any={id:"9", status:"Completed",
       area:{bbox:[80.15,13.08,80.20,13.13]},

@@ -14,6 +14,10 @@ export default function LayerPanel({ layers, onChange, simulation }: any) {
   const floodLegend = floodStats 
     ? `${floodStats.min?.toFixed?.(2) ?? "0"}→${floodStats.max?.toFixed?.(2) ?? floodStats.maxDepth?.toFixed?.(2) ?? "1.0"}m` 
     : "0→0.05 light, 0.3 medium, 1.0 dark"
+  const depthPalette = (layers as any)?.depth?.palette ?? "blue"
+  const paletteLegend = depthPalette === "greenred"
+    ? "green→yellow→red"
+    : "light blue→dark blue"
 
   const groups = [
     {
@@ -128,8 +132,38 @@ export default function LayerPanel({ layers, onChange, simulation }: any) {
 
               {/* Compact range for depth */}
               {g.id === "depth" && isVisible && (
-                <div className="mt-1 text-[10px] text-cyan-300/80 font-mono">
-                  {floodLegend}
+                <div className="mt-1 space-y-1">
+                  <div className="text-[10px] text-cyan-300/80 font-mono">
+                    {floodLegend} • {paletteLegend}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-label="Blue depth palette"
+                      aria-pressed={depthPalette === "blue"}
+                      title="Blue depth palette"
+                      onClick={() => update("depth", { palette: "blue" })}
+                      className={`w-6 h-4 rounded border transition focus-ring ${
+                        depthPalette === "blue"
+                          ? "border-cyan-400 ring-1 ring-cyan-400"
+                          : "border-slate-700"
+                      }`}
+                      style={{ background: "linear-gradient(90deg,#bae6fd,#38bdf8,#0284c7,#082f49)" }}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Green-red depth palette"
+                      aria-pressed={depthPalette === "greenred"}
+                      title="Green-red depth palette"
+                      onClick={() => update("depth", { palette: "greenred" })}
+                      className={`w-6 h-4 rounded border transition focus-ring ${
+                        depthPalette === "greenred"
+                          ? "border-cyan-400 ring-1 ring-cyan-400"
+                          : "border-slate-700"
+                      }`}
+                      style={{ background: "linear-gradient(90deg,#22c55e,#facc15,#dc2626)" }}
+                    />
+                  </div>
                 </div>
               )}
 
