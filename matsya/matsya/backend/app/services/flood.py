@@ -29,8 +29,9 @@ TIF = _find_tif()
 _ASSETS_CACHE = {"data": None, "ts": 0}
 
 
-# depth color ramp: 0→0.05 #bae6fd, 0.15 #38bdf8, 0.3 #0284c7, 0.6 #0c4a6e, 1.0 #082f49
-# expanded to 6 stops with duplicate at 0 and 0.05 for flat start
+# depth color ramps (normalized by maxDepth, shared stops)
+# blue (legacy): 0→0.05 #bae6fd, 0.15 #38bdf8, 0.3 #0284c7, 0.6 #0c4a6e, 1.0 #082f49
+# greenred: green (shallow) -> yellow -> red (deep)
 _DEPTH_STOPS = [0.0, 0.05, 0.15, 0.3, 0.6, 1.0]
 _DEPTH_COLORS = [
     (186, 230, 253),  # #bae6fd at 0.0
@@ -40,13 +41,25 @@ _DEPTH_COLORS = [
     (12, 74, 110),    # #0c4a6e at 0.6
     (8, 47, 73),      # #082f49 at 1.0
 ]
+_GREENRED_COLORS = [
+    (34, 197, 94),    # #22c55e at 0.0
+    (74, 222, 128),   # #4ade80 at 0.05
+    (163, 230, 53),   # #a3e635 at 0.15
+    (250, 204, 21),   # #facc15 at 0.3
+    (249, 115, 22),   # #f97316 at 0.6
+    (220, 38, 38),    # #dc2626 at 1.0
+]
+DEPTH_PALETTES = {"blue": _DEPTH_COLORS, "greenred": _GREENRED_COLORS}
+# below this depth a cell renders fully transparent (unaffected area)
+DEPTH_ALPHA_CUTOFF_M = 0.02
 
 
-def depth_color(depth: float, stats: dict | None) -> tuple[int, int, int]:
+def depth_color(depth: float, stats: dict | None, palette: str = "blue") -> tuple[int, int, int]:
     """Interpolate depth color ramp by depth/maxDepth.
     Ramp: 0→0.05 #bae6fd, 0.15 #38bdf8, 0.3 #0284c7, 0.6 #0c4a6e, 1.0 #082f49
     """
     try:
+        colors = DEPTH_PALETTES.get(palette or "blue", _DEPTH_COLORS)
         max_d = None
         if stats is not None:
             if isinstance(stats, dict):
@@ -59,17 +72,61 @@ def depth_color(depth: float, stats: dict | None) -> tuple[int, int, int]:
             norm = float(depth) / float(max_d)
     except Exception:
         norm = 0.0
+        colors = _DEPTH_COLORS
     norm = max(0.0, min(1.0, norm))
     # interpolate
     for i in range(len(_DEPTH_STOPS) - 1):
         if _DEPTH_STOPS[i] <= norm <= _DEPTH_STOPS[i + 1]:
             span = _DEPTH_STOPS[i + 1] - _DEPTH_STOPS[i]
             t = (norm - _DEPTH_STOPS[i]) / span if span != 0 else 0.0
-            r = int(_DEPTH_COLORS[i][0] * (1 - t) + _DEPTH_COLORS[i + 1][0] * t)
-            g = int(_DEPTH_COLORS[i][1] * (1 - t) + _DEPTH_COLORS[i + 1][1] * t)
-            b = int(_DEPTH_COLORS[i][2] * (1 - t) + _DEPTH_COLORS[i + 1][2] * t)
+            r = int(colors[i][0] * (1 - t) + colors[i + 1][0] * t)
+            g = int(colors[i][1] * (1 - t) + colors[i + 1][1] * t)
+            b = int(colors[i][2] * (1 - t) + colors[i + 1][2] * t)
             return (r, g, b)
-    return _DEPTH_COLORS[-1]
+    return colors[-1]
+
+
+def render_depth_png(depth_arr, stats, palette: str = "blue") -> bytes:
+    """Render one depth grid to RGBA PNG bytes. Cells below
+    DEPTH_ALPHA_CUTOFF_M are fully transparent. Unknown palette raises ValueError."""
+    import numpy as _np
+    colors = DEPTH_PALETTES.get(palette or "blue")
+    if colors is None:
+        raise ValueError(f"unknown palette {palette!r} (expected one of {sorted(DEPTH_PALETTES)})")
+    try:
+        max_d = None
+        if isinstance(stats, dict):
+            max_d = stats.get("maxDepth")
+        elif stats is not None:
+            max_d = getattr(stats, "maxDepth", None)
+        max_d = float(max_d) if max_d else 1.0
+    except Exception:
+        max_d = 1.0
+    depth_arr = _np.asarray(depth_arr, dtype=float)
+    height, width = depth_arr.shape
+    norm = _np.clip(depth_arr / max_d, 0, 1)
+    rgba = _np.zeros((height, width, 4), dtype=_np.uint8)
+    for si in range(len(_DEPTH_STOPS) - 1):
+        lo = _DEPTH_STOPS[si]
+        hi = _DEPTH_STOPS[si + 1]
+        mask = (norm >= lo) & (norm <= hi)
+        if not _np.any(mask):
+            continue
+        span = hi - lo
+        if span == 0:
+            t = _np.zeros_like(norm[mask], dtype=float)
+        else:
+            t = (norm[mask] - lo) / span
+        c0 = colors[si]
+        c1 = colors[si + 1]
+        rgba[mask, 0] = (c0[0] * (1 - t) + c1[0] * t).astype(_np.uint8)
+        rgba[mask, 1] = (c0[1] * (1 - t) + c1[1] * t).astype(_np.uint8)
+        rgba[mask, 2] = (c0[2] * (1 - t) + c1[2] * t).astype(_np.uint8)
+    rgba[..., 3] = _np.where(_np.asarray(depth_arr) < DEPTH_ALPHA_CUTOFF_M, 0, 255).astype(_np.uint8)
+    img = Image.fromarray(rgba, "RGBA")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def _dem_for_bbox(bbox, width, height):
