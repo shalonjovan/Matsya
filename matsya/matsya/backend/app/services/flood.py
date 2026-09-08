@@ -642,7 +642,7 @@ def _swmm_node_floods(bbox, rainfall):
     return cached_node_floods(list(bbox), rainfall or {})
 
 
-def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None, initial_fill_pct=75.0):
+def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None, initial_fill_pct=75.0, waterbody_states=None):
     """Generate flood snapshots per bbox+rainfall using DEM low spots.
 
     Args:
@@ -824,7 +824,15 @@ def generate_flood(bbox, rainfall, width=180, height=180, steps=73, polygon=None
                     wb_observed += 1
                 info["depth_source"] = src
                 bed = info["crest"] - depth
-                stage0 = bed + fill_frac * depth
+                # live per-lake fill override (realtime sims); global fill_frac otherwise
+                _fill = fill_frac
+                try:
+                    _st = (waterbody_states or {}).get(str(info.get("id")))
+                    if isinstance(_st, dict) and _st.get("fillPct") is not None:
+                        _fill = min(1.0, max(0.0, float(_st["fillPct"]) / 100.0))
+                except Exception:
+                    pass
+                stage0 = bed + _fill * depth
                 wb_objs.append(WaterBody(area_m2=info["area_m2"], crest=info["crest"],
                                          stage=stage0, depth=depth))
             except Exception:
@@ -1517,7 +1525,14 @@ def ensure_flood(sim, base_path=None, width=180, height=180):
     _dur = _flood_duration_hr(rainfall)
     _steps = _playback_steps(_dur)
     _mpf = _playback_minutes_per_frame(_dur, _steps)
-    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=_steps, initial_fill_pct=_fill)
+    # live per-lake fills ride on sim.hydro.waterbodyStates (absent = global fill)
+    try:
+        _h = getattr(sim, "hydro", None)
+        _hd = _h if isinstance(_h, dict) else (_h.model_dump(mode="json") if _h is not None and hasattr(_h, "model_dump") else {})
+        _wb_states = (_hd or {}).get("waterbodyStates")
+    except Exception:
+        _wb_states = None
+    snaps, pngs, stats = generate_flood(bbox, rainfall, width=width, height=height, steps=_steps, initial_fill_pct=_fill, waterbody_states=_wb_states)
     stats = dict(stats or {})
     stats["minutesPerFrame"] = _mpf
     stats["floodVersion"] = 2

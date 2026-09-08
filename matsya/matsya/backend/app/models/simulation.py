@@ -161,5 +161,6 @@ class Simulation(BaseModel):
     elevation: Elevation | None = None
     flood: Flood | None = None
     hydro: HydroConfig | None = None
+    live: bool = False
     metadata: Metadata = Field(default_factory=Metadata)
     status: StatusEnum = StatusEnum.Ready

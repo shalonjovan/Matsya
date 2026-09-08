@@ -58,12 +58,40 @@ class DummyWeather(WeatherSource):
                     [x0, y0], [x0 + w, y0], [x0 + w, y0 + d], [x0, y0 + d], [x0, y0]]]}},
             )
         lakes = []
+        _ids = _real_lake_ids() or []
         for j in range(5):
             h = hashlib.md5(f"{_h}:lake{j}".encode()).hexdigest()
             fill = 40.0 + (int(h[:4], 16) % 4001) / 100.0  # 40-80
-            lakes.append({"id": f"lake-{j}", "fillPct": round(fill, 1)})
+            _lid = _ids[j % len(_ids)] if _ids else f"lake-{j}"
+            lakes.append({"id": str(_lid), "fillPct": round(fill, 1)})
         assert all(40.0 <= l["fillPct"] <= 80.0 for l in lakes)
         return {"rain": rain, "lakes": lakes, "source": "dummy"}
+
+
+_LAKE_IDS: list | None = None
+
+
+def _real_lake_ids():
+    """Asset lake ids (cached). None when assets unavailable (fallback ids used)."""
+    global _LAKE_IDS
+    try:
+        if _LAKE_IDS is not None:
+            return _LAKE_IDS
+        from app.services.hydro.asset_loader import load_assets
+        gdf = load_assets("assets").get("waterbodies")
+        ids = []
+        if gdf is not None:
+            for _, row in gdf.iterrows():
+                try:
+                    _id = row.get("id", None) if hasattr(row, "get") else None
+                    ids.append(str(_id) if _id is not None else None)
+                except Exception:
+                    continue
+        ids = [i for i in ids if i]
+        _LAKE_IDS = ids or None
+        return _LAKE_IDS
+    except Exception:
+        return None
 
 
 _REGISTRY = {"dummy": DummyWeather}
