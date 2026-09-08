@@ -128,3 +128,70 @@
   }
 }
 
+/* Light theme overrides (dark is the default, no overrides needed).
+   Components hardcode dark utilities, so light mode remaps the core
+   surfaces/text via [data-theme="light"]. Map tiles, markers and data
+   overlays are intentionally untouched (data stays truthful). */
+[data-theme="light"] body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+}
+[data-theme="light"] .glass-panel {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(203, 213, 225, 0.9);
+}
+[data-theme="light"] .glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(203, 213, 225, 0.8);
+}
+[data-theme="light"] .bg-slate-950,
+[data-theme="light"] .bg-slate-950\/60,
+[data-theme="light"] .bg-slate-950\/80,
+[data-theme="light"] .bg-slate-950\/90 {
+  background-color: #ffffff;
+}
+[data-theme="light"] .bg-slate-900,
+[data-theme="light"] .bg-slate-900\/80,
+[data-theme="light"] .bg-slate-900\/90 {
+  background-color: #f8fafc;
+}
+[data-theme="light"] .bg-slate-800,
+[data-theme="light"] .bg-slate-800\/80 {
+  background-color: #e2e8f0;
+}
+[data-theme="light"] .text-white {
+  color: #0f172a;
+}
+[data-theme="light"] .text-slate-200 {
+  color: #1e293b;
+}
+[data-theme="light"] .text-slate-300 {
+  color: #334155;
+}
+[data-theme="light"] .text-slate-400,
+[data-theme="light"] .text-slate-500 {
+  color: #64748b;
+}
+[data-theme="light"] .border-slate-800,
+[data-theme="light"] .border-slate-800\/80,
+[data-theme="light"] .border-slate-700,
+[data-theme="light"] .border-slate-700\/60,
+[data-theme="light"] .border-slate-700\/80 {
+  border-color: #cbd5e1;
+}
+[data-theme="light"] input,
+[data-theme="light"] select {
+  background-color: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+[data-theme="light"] input::placeholder {
+  color: #94a3b8;
+}
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.6);
+}
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.6);
+}
+

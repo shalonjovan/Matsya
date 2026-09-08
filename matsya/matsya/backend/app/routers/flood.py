@@ -50,7 +50,7 @@ def get_flood_stats(sim_id: str):
 
 
 @router.get("")
-def get_flood(sim_id: str, time: int = 0):
+def get_flood(sim_id: str, time: int = 0, palette: str = "blue"):
     # Validate sim exists
     try:
         sim = store.get(sim_id)
@@ -69,6 +69,48 @@ def get_flood(sim_id: str, time: int = 0):
                 time = max_steps - 1
     except Exception:
         pass
+
+    # Variant palette: render on the fly from stored snapshots (never the stored bytes)
+    if (palette or "blue") != "blue":
+        from app.services.flood import DEPTH_PALETTES, render_depth_png
+        if palette not in DEPTH_PALETTES:
+            raise HTTPException(400, f"unknown palette {palette!r} (expected one of {sorted(DEPTH_PALETTES)})")
+        import numpy as _np
+        _snaps = None
+        for p in [store.base_path / f"{sim_id}" / "flood" / "snapshots.npy",
+                  Path(f"matsya/matsya/backend/data/simulations/{sim_id}/flood/snapshots.npy"),
+                  Path(f"backend/data/simulations/{sim_id}/flood/snapshots.npy"),
+                  Path(f"data/simulations/{sim_id}/flood/snapshots.npy"),
+                  Path(__file__).resolve().parents[2] / "data" / "simulations" / f"{sim_id}" / "flood" / "snapshots.npy"]:
+            try:
+                if p.exists():
+                    _snaps = [a for a in _np.load(str(p))]
+                    break
+            except Exception:
+                continue
+        if not _snaps:
+            raise HTTPException(404, f"flood snapshots not found for {sim_id}")
+        try:
+            _stats = None
+            _fobj = getattr(sim, "flood", None)
+            _s = getattr(_fobj, "stats", None) if _fobj is not None else None
+            if isinstance(_s, dict):
+                _stats = _s
+            elif _s is not None:
+                try:
+                    _stats = _s.model_dump(mode="json")
+                except Exception:
+                    try:
+                        _stats = dict(vars(_s))
+                    except Exception:
+                        _stats = None
+        except Exception:
+            _stats = None
+        try:
+            _png = render_depth_png(_snaps[max(0, min(time, len(_snaps) - 1))], _stats, palette)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+        return Response(content=_png, media_type="image/png")
 
     # Candidates for PNG
     candidates = [

@@ -101,7 +101,8 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
                     layerRefs.current.terrainOverlay.setUrl(newElevUri)
                     if (layers?.terrain?.visible) layerRefs.current.terrainOverlay.addTo(map)
                   }
-                  const newFloodUri = sim.flood.floodUri.split("?")[0] + `?time=${time}&v=${sim.flood.stats.maxDepth}`
+                  const floodPalette0 = (layers as any)?.depth?.palette ?? "blue"
+                  const newFloodUri = sim.flood.floodUri.split("?")[0] + `?time=${time}&palette=${floodPalette0}&v=${sim.flood.stats.maxDepth}`
                   if (layerRefs.current.floodOverlay) {
                     layerRefs.current.floodOverlay.setUrl(newFloodUri)
                   }
@@ -120,8 +121,9 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         // flood overlay from TIF per simulation + time — Flood depth §9
         const timeIdx = time ?? 0
         const floodVersion = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
+        const floodPalette = (layers as any)?.depth?.palette ?? "blue"
         const baseFloodUri = (simulation as any)?.flood?.floodUri ? (simulation as any).flood.floodUri.split("?")[0] : `/api/simulations/${simulation.id}/flood`
-        const floodUri = `${baseFloodUri}?time=${timeIdx}&v=${encodeURIComponent(String(floodVersion))}`
+        const floodUri = `${baseFloodUri}?time=${timeIdx}&palette=${floodPalette}&v=${encodeURIComponent(String(floodVersion))}`
         try {
           try { fetch(floodUri).catch(()=>{}) } catch {}
           const floodOverlay = (L as any).imageOverlay(floodUri, bounds, {opacity: layers?.depth?.opacity ?? 0.6})
@@ -325,7 +327,8 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       try {
         const timeIdx2 = time ?? 0
         const floodVersion2 = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
-        const newUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx2}&v=${encodeURIComponent(String(floodVersion2))}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx2}&v=${encodeURIComponent(String(floodVersion2))}`
+        const floodPalette2 = (layers as any)?.depth?.palette ?? "blue"
+        const newUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx2}&palette=${floodPalette2}&v=${encodeURIComponent(String(floodVersion2))}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx2}&palette=${floodPalette2}&v=${encodeURIComponent(String(floodVersion2))}`
         if (layerRefs.current.floodOverlay._url !== newUri) {
           try { fetch(newUri).catch(()=>{}) } catch {}
           try { layerRefs.current.floodOverlay.setUrl(newUri) } catch {}
