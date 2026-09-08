@@ -74,3 +74,69 @@ def build_event_sim(name_suffix=""):
                      "unit": "total", "points": _dec1_points(),
                      "zones": [south, north]},
     })
+
+
+FORMULA = ("similarityPct = round(50*recall + 50*bandAgreement); "
+           "recall = reported severe|moderate localities with modeled max >= 15cm / total; "
+           "bandAgreement = exact band matches / total; "
+           "bands: severe >= 100cm, moderate 15-100cm, mild < 15cm (snapshot max at locality cell)")
+WET_CM = 15.0
+
+
+def _band(depth_cm):
+    try:
+        _d = float(depth_cm)
+    except Exception:
+        return "mild"
+    if _d >= 100.0:
+        return "severe"
+    if _d >= WET_CM:
+        return "moderate"
+    return "mild"
+
+
+def compare(sim_id):
+    """Reference-vs-modeled agreement. Never raises (empty result on failure)."""
+    from app.services.snapshots import load_snapshots
+    from app.services.analysis import _lat_lon_to_row_col
+    try:
+        from app.services.simulation_store import store
+        sim = store.get(sim_id)
+    except Exception:
+        return {"localities": [], "recall": 0.0, "bandAgreement": 0.0,
+                "similarityPct": 0, "formula": FORMULA, "wetThresholdCm": WET_CM,
+                "error": "simulation not found"}
+    try:
+        f = load_fixture()
+        locs = f.get("referenceLocalities") or []
+        snaps, _, bbox = load_snapshots(sim)
+        if not snaps:
+            return {"localities": [], "recall": 0.0, "bandAgreement": 0.0,
+                    "similarityPct": 0, "formula": FORMULA, "wetThresholdCm": WET_CM,
+                    "error": "snapshots unavailable"}
+        import numpy as _np
+        stack = _np.asarray([_np.asarray(s, dtype=float) for s in snaps])
+        rows, cols = stack.shape[1], stack.shape[2]
+        out = []
+        for loc in locs:
+            try:
+                _r, _c = _lat_lon_to_row_col(float(loc["lat"]), float(loc["lon"]),
+                                             list(bbox), rows, cols)
+                _mx = round(float(stack[:, _r, _c].max()) * 100.0, 1)
+                _mb = _band(_mx)
+                out.append({"name": loc.get("name"), "lat": loc.get("lat"), "lon": loc.get("lon"),
+                            "reportedBand": loc.get("reportedBand"), "basis": loc.get("basis"),
+                            "source": loc.get("source"), "modeledMaxCm": _mx, "modeledBand": _mb,
+                            "match": bool(_mb == loc.get("reportedBand"))})
+            except Exception:
+                continue
+        _sig = [loc for loc in out if loc.get("reportedBand") in ("severe", "moderate")]
+        _recall = (sum(1 for loc in _sig if loc["modeledMaxCm"] >= WET_CM) / max(1, len(_sig)))
+        _agree = (sum(1 for loc in out if loc["match"]) / max(1, len(out)))
+        return {"localities": out, "recall": round(_recall, 3), "bandAgreement": round(_agree, 3),
+                "similarityPct": int(round(50 * _recall + 50 * _agree)),
+                "formula": FORMULA, "wetThresholdCm": WET_CM}
+    except Exception:
+        return {"localities": [], "recall": 0.0, "bandAgreement": 0.0,
+                "similarityPct": 0, "formula": FORMULA, "wetThresholdCm": WET_CM,
+                "error": "comparison failed"}

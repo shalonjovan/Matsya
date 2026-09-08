@@ -180,6 +180,43 @@ def safe_route(body: dict):
     return v1_envelope(res)
 
 
+@router.post("/event/2015/replay", status_code=201)
+def replay_2015(body: dict | None = None):
+    from app.services.event_2015 import build_event_sim
+    try:
+        _suffix = str(((body or {}).get("nameSuffix")) or "")
+    except Exception:
+        _suffix = ""
+    try:
+        sim = build_event_sim(_suffix)
+        _sid = getattr(sim, "id", None)
+        if _sid is None and isinstance(sim, dict):
+            _sid = sim.get("id")
+    except Exception as e:
+        raise HTTPException(400, f"replay sim failed: {e}")
+    return v1_envelope({"simId": _sid})
+
+
+@router.get("/event/2015/facts")
+def event_2015_facts():
+    from app.services.event_2015 import load_fixture
+    return v1_envelope(load_fixture())
+
+
+@router.get("/event/2015/compare")
+def event_2015_compare(simId: str):
+    from app.services.event_2015 import compare
+    try:
+        _s = store.get(simId)
+    except FileNotFoundError:
+        raise HTTPException(404, "simulation not found")
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    if not _s:
+        raise HTTPException(404, "simulation not found")
+    return v1_envelope(compare(simId))
+
+
 @router.post("/safe-spaces")
 def safe_spaces(body: dict):
     _o = (body or {}).get("origin") or {}
