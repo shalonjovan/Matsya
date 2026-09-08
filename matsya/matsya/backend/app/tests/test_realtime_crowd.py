@@ -57,3 +57,24 @@ def test_crowd_overlay_raises_cell():
         assert float(np.asarray(snaps[-1]).max()) >= 1.0  # 200cm pin visible allowing decay
     finally:
         _clean()
+
+
+def test_report_applies_immediately():
+    import numpy as np
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.services.simulation_store import store
+    from app.services.realtime.manager import REALTIME_ID
+    from app.services.snapshots import load_snapshots
+    from app.services.analysis import _lat_lon_to_row_col
+    _realtime()
+    try:
+        c = TestClient(app)
+        r = c.post("/api/v1/crowd/reports", json={"lat": 13.10, "lon": 80.17, "depthCm": 200, "kind": "flooded"})
+        assert r.status_code == 201, r.text
+        snaps, _, bbox = load_snapshots(store.get(REALTIME_ID))
+        arr = np.asarray(snaps[-1])
+        rr, cc = _lat_lon_to_row_col(13.10, 80.17, list(bbox), *arr.shape)
+        assert float(arr[rr, cc]) >= 1.0  # visible without waiting for next tick
+    finally:
+        _clean()

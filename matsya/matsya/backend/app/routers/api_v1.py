@@ -329,6 +329,12 @@ def create_crowd_report(body: dict):
         raise HTTPException(404, "simulation not found")
     except ValueError as e:
         raise HTTPException(422, str(e))
+    # apply immediately so the reporter sees it (next tick re-applies anyway)
+    try:
+        from app.services.realtime.manager import apply_crowd_overlay
+        apply_crowd_overlay(_sid)
+    except Exception:
+        pass
     return v1_envelope({"reportId": rep["id"]})
 
 
