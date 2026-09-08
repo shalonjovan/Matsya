@@ -11,8 +11,27 @@ import {
   LayoutGrid,
   Plus,
   Clock,
-  Cpu
+  Cpu,
+  Sun,
+  Moon
 } from "lucide-react"
+import { ThemeProvider, useTheme } from "./components/ThemeContext"
+
+function ThemeToggle() {
+  const { theme, toggle } = useTheme()
+  const dark = theme === "dark"
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+      title={dark ? "Switch to light mode" : "Switch to dark mode"}
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-700/80 bg-slate-900/80 text-slate-300 hover:text-white transition focus-ring"
+    >
+      {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </button>
+  )
+}
 
 function getWorldIdFromHash(): string | null {
   const hash = typeof window !== "undefined" ? window.location.hash : ""
@@ -86,6 +105,7 @@ function App() {
   }
 
   return (
+    <ThemeProvider>
     <div className="min-h-screen bg-[#070A0F] text-slate-100 flex flex-col selection:bg-cyan-500 selection:text-black">
       {/* Precision Operations Center Header */}
       <header className="h-16 flex items-center justify-between px-5 bg-slate-950/90 border-b border-slate-800/80 sticky top-0 z-30 backdrop-blur-xl">
@@ -165,6 +185,7 @@ function App() {
 
         {/* Right Telemetry & Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <ThemeToggle />
           {/* Live Clock IST */}
           <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-900/80 rounded-xl border border-slate-800 text-xs font-mono text-slate-300">
             <Clock className="w-3.5 h-3.5 text-cyan-400" />
@@ -230,6 +251,7 @@ function App() {
         editSim={editSim}
       />
     </div>
+    </ThemeProvider>
   )
 }
 
