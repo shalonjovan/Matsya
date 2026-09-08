@@ -19,7 +19,7 @@ const BASEMAP_TILES: Record<string, { url: string, attr: string }> = {
   }
 }
 
-export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect, route }: any) {
+export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect, route, floodNonce }: any) {
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const layerRefs = useRef<any>({})
@@ -102,7 +102,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
                     if (layers?.terrain?.visible) layerRefs.current.terrainOverlay.addTo(map)
                   }
                   const floodPalette0 = (layers as any)?.depth?.palette ?? "blue"
-                  const newFloodUri = sim.flood.floodUri.split("?")[0] + `?time=${time}&palette=${floodPalette0}&v=${sim.flood.stats.maxDepth}`
+                  const newFloodUri = sim.flood.floodUri.split("?")[0] + `?time=${time}&palette=${floodPalette0}&cv=${floodNonce ?? 0}&v=${sim.flood.stats.maxDepth}`
                   if (layerRefs.current.floodOverlay) {
                     layerRefs.current.floodOverlay.setUrl(newFloodUri)
                   }
@@ -123,7 +123,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         const floodVersion = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
         const floodPalette = (layers as any)?.depth?.palette ?? "blue"
         const baseFloodUri = (simulation as any)?.flood?.floodUri ? (simulation as any).flood.floodUri.split("?")[0] : `/api/simulations/${simulation.id}/flood`
-        const floodUri = `${baseFloodUri}?time=${timeIdx}&palette=${floodPalette}&v=${encodeURIComponent(String(floodVersion))}`
+        const floodUri = `${baseFloodUri}?time=${timeIdx}&palette=${floodPalette}&cv=${floodNonce ?? 0}&v=${encodeURIComponent(String(floodVersion))}`
         try {
           try { fetch(floodUri).catch(()=>{}) } catch {}
           const floodOverlay = (L as any).imageOverlay(floodUri, bounds, {opacity: layers?.depth?.opacity ?? 0.6})
@@ -328,7 +328,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         const timeIdx2 = time ?? 0
         const floodVersion2 = (simulation as any)?.flood?.stats?.maxDepth ?? (simulation as any)?.metadata?.updated ?? Date.now()
         const floodPalette2 = (layers as any)?.depth?.palette ?? "blue"
-        const newUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx2}&palette=${floodPalette2}&v=${encodeURIComponent(String(floodVersion2))}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx2}&palette=${floodPalette2}&v=${encodeURIComponent(String(floodVersion2))}`
+        const newUri = (simulation as any)?.flood?.floodUri ? `${(simulation as any).flood.floodUri.split("?")[0]}?time=${timeIdx2}&palette=${floodPalette2}&cv=${floodNonce ?? 0}&v=${encodeURIComponent(String(floodVersion2))}` : `/api/simulations/${simulation.id}/flood?time=${timeIdx2}&palette=${floodPalette2}&cv=${floodNonce ?? 0}&v=${encodeURIComponent(String(floodVersion2))}`
         if (layerRefs.current.floodOverlay._url !== newUri) {
           try { fetch(newUri).catch(()=>{}) } catch {}
           try { layerRefs.current.floodOverlay.setUrl(newUri) } catch {}
@@ -423,7 +423,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
         }
       } catch {}
     }
-  },[layers, time])
+  },[layers, time, floodNonce])
 
   // Safe Route overlay — draws selected fastest/safest polylines + destination
   useEffect(() => {

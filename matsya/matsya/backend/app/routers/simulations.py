@@ -119,6 +119,12 @@ def update_simulation(sim_id: str, payload: dict = Body(...)):
 @router.delete("/{sim_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_simulation(sim_id: str):
     try:
+        from app.services.realtime.manager import REALTIME_ID
+    except Exception:
+        REALTIME_ID = "realtime-chennai-01"
+    if sim_id == REALTIME_ID:
+        raise HTTPException(status_code=400, detail="Live realtime sim is managed by the tick loop and cannot be deleted")
+    try:
         store.delete(sim_id)
         return None
     except FileNotFoundError:
@@ -127,6 +133,12 @@ def delete_simulation(sim_id: str):
 
 @router.post("/{sim_id}/duplicate", status_code=status.HTTP_201_CREATED)
 def duplicate_simulation(sim_id: str, payload: dict = Body(default={})):
+    try:
+        from app.services.realtime.manager import REALTIME_ID
+    except Exception:
+        REALTIME_ID = "realtime-chennai-01"
+    if sim_id == REALTIME_ID:
+        raise HTTPException(status_code=400, detail="Live realtime sim cannot be duplicated; create a scenario sim instead")
     try:
         name = None
         if isinstance(payload, dict):

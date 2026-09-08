@@ -204,10 +204,12 @@ export default function SelectSimulation({
     else openRenameModal(sim)
   }
 
-  // Filtered simulations
+  // Filtered simulations (live sim lives in its own pinned hero, never the grid)
+  const liveSim = useMemo(() => (data ?? []).find((s: any) => s.live === true), [data])
   const filteredSims = useMemo(() => {
     if (!data) return []
     return data.filter(sim => {
+      if ((sim as any).live === true) return false
       const matchesSearch = sim.name.toLowerCase().includes(searchQuery.toLowerCase())
       const status = getStatus(sim).toUpperCase()
       const matchesStatus = statusFilter === "ALL" || status === statusFilter
@@ -399,9 +401,36 @@ export default function SelectSimulation({
         </div>
       )}
 
+      {/* Singular live entry — the one realtime sim, pinned above the grid */}
+      {!loading && liveSim && (
+        <div
+          data-testid="live-hero"
+          className="mb-6 rounded-2xl border border-emerald-500/40 bg-emerald-500/5 p-5 flex flex-col sm:flex-row sm:items-center gap-4"
+        >
+          <span className="relative flex h-3 w-3 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="text-[10px] font-mono text-emerald-300 font-semibold tracking-wider uppercase">LIVE • updating</div>
+            <h3 className="text-white font-bold text-lg leading-snug truncate">{liveSim.name}</h3>
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+              {formatRainfall((liveSim as any).rainfall)} • updated {formatLastModified(liveSim)}
+            </div>
+          </div>
+          <button
+            onClick={() => handleOpen(liveSim.id)}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold shadow-md transition shrink-0"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            Open
+          </button>
+        </div>
+      )}
+
       {/* Simulations Grid */}
       {!loading && filteredSims && filteredSims.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div data-testid="sim-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSims.map((sim) => {
             const status = getStatus(sim)
             const style = statusBadgeStyles[status] ?? statusBadgeStyles.Ready

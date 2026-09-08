@@ -79,7 +79,9 @@ class SimulationStore:
         _list_cache["count"] = file_count
         return sims
 
-    def create(self, data: dict) -> Simulation:
+    def create(self, data: dict, background: bool = True) -> Simulation:
+        """Create a sim. background=False skips the bg generation thread
+        (callers like the realtime tick run the pipeline synchronously)."""
         sim = Simulation.model_validate(data)
         # Set initial status to Processing for elevation/flood
         try:
@@ -136,7 +138,9 @@ class SimulationStore:
                 print(f"bg gen failed: {e}")
                 import traceback
                 traceback.print_exc()
-        # Start background thread
+        # Start background thread (skipped when the caller runs the pipeline itself)
+        if not background:
+            return sim
         try:
             # Pass sim data as dict to avoid race
             sim_data = sim.model_dump(mode="python")
