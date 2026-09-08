@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import SelectSimulation from "./components/SelectSimulation"
 import CreateWizard from "./components/CreateWizard"
 import MapShell from "./components/MapShell"
+import Event2015 from "./components/Event2015"
 import type { Simulation } from "./types/simulation"
 import { fetchSimulations } from "./hooks/useSimulation"
 import {
@@ -24,6 +25,7 @@ function getWorldIdFromHash(): string | null {
 
 function App() {
   const [worldId, setWorldId] = useState<string | null>(() => getWorldIdFromHash())
+  const [event2015, setEvent2015] = useState<boolean>(() => typeof window !== "undefined" && window.location.hash === "#/event/2015")
   const [showSelect, setShowSelect] = useState<boolean>(() => getWorldIdFromHash() === null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editSim, setEditSim] = useState<Simulation | null>(null)
@@ -43,6 +45,11 @@ function App() {
 
   useEffect(() => {
     const onHashChange = () => {
+      if (typeof window !== "undefined" && window.location.hash === "#/event/2015") {
+        setEvent2015(true)
+        return
+      }
+      setEvent2015(false)
       const wid = getWorldIdFromHash()
       setWorldId(wid)
       setShowSelect(wid === null)
@@ -139,6 +146,20 @@ function App() {
               <MapIcon className="w-3.5 h-3.5" />
               <span>Map</span>
             </button>
+            <button
+              onClick={() => {
+                window.location.hash = "#/event/2015"
+                setEvent2015(true)
+              }}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition ${
+                event2015
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>2015 Replay</span>
+            </button>
           </nav>
         </div>
 
@@ -175,7 +196,9 @@ function App() {
 
       {/* Main Operations Area */}
       <main className={`flex-1 ${!showSelect && worldId ? "p-0" : "p-4 sm:p-6 max-w-7xl mx-auto w-full"}`}>
-        {showSelect || !worldId ? (
+        {event2015 ? (
+          <Event2015 />
+        ) : showSelect || !worldId ? (
           <SelectSimulation onOpen={handleOpen} onCreate={handleCreate} onEdit={handleEdit} />
         ) : currentSim ? (
           <MapShell key={currentSim.id} simulation={currentSim} />
