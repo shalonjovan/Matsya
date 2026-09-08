@@ -13,12 +13,14 @@ import HydroLayer from "./HydroLayer"
 import WaterbodyInspector from "./WaterbodyInspector"
 import type { Simulation } from "../types/simulation"
 import SafeRoute from "./SafeRoute"
+import LiveRealtime from "./LiveRealtime"
 import {
   Layers,
   Crosshair,
   AlertTriangle,
   FileText,
   Navigation,
+  Radio,
   PanelRightClose,
   PanelRightOpen
 } from "lucide-react"
@@ -33,7 +35,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
   useEffect(() => { setTime(t => Math.min(t, tmax)) }, [tmax])
   useEffect(() => { setRoute(null) }, [simulation.id])
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [activeTab, setActiveTab] = useState<"LAYERS" | "INSPECTOR" | "IMPACTS" | "REPORTS" | "ROUTES" | "ALL">("LAYERS")
+  const [activeTab, setActiveTab] = useState<"LAYERS" | "INSPECTOR" | "IMPACTS" | "REPORTS" | "ROUTES" | "LIVE" | "ALL">("LAYERS")
   const [route, setRoute] = useState<{ safest: [number, number][]; fastest: [number, number][] | null; dest: { lat: number; lon: number } } | null>(null)
 
   const [layers, setLayers] = useState<any>({
@@ -280,6 +282,20 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
               <button
                 type="button"
                 role="tab"
+                aria-selected={activeTab === "LIVE"}
+                onClick={() => setActiveTab("LIVE")}
+                className={`flex items-center gap-1 px-3 py-1.5 rounded-lg transition focus-ring ${
+                  activeTab === "LIVE"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm"
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                <Radio className="w-3.5 h-3.5" />
+                Live
+              </button>
+              <button
+                type="button"
+                role="tab"
                 aria-selected={activeTab === "ALL"}
                 onClick={() => setActiveTab("ALL")}
                 className={`px-2.5 py-1.5 rounded-lg transition focus-ring ${
@@ -325,6 +341,12 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
                   timeMin={Math.min(time, tmax) * mpf}
                   origin={selectedPoint ? { lat: selectedPoint.lat, lon: selectedPoint.lon } : null}
                   onSelectRoute={setRoute}
+                />
+              )}
+
+              {(activeTab === "ALL" || activeTab === "LIVE") && (
+                <LiveRealtime
+                  origin={selectedPoint ? { lat: selectedPoint.lat, lon: selectedPoint.lon } : null}
                 />
               )}
             </div>
