@@ -113,10 +113,17 @@ def apply_crowd_overlay(sim_id):
     for r in reps:
         try:
             _rr, _cc = _lat_lon_to_row_col(float(r["lat"]), float(r["lon"]), list(bbox), rows, cols)
-            _target = float(r["depthCm"]) / 100.0 * (0.5 ** (float(r.get("ageHrs", 0.0)) / CROWD_HALF_LIFE_HRS))
-            for a in arrs:
-                if _target > float(a[_rr, _cc]):
-                    a[_rr, _cc] = _target
+            _rep_m = float(r["depthCm"]) / 100.0
+            if _rep_m <= 0:
+                # authoritative dry observation: clear the cell while the report lives
+                # (max() below could never lower it — reported dry was a no-op)
+                for a in arrs:
+                    a[_rr, _cc] = 0.0
+            else:
+                _target = _rep_m * (0.5 ** (float(r.get("ageHrs", 0.0)) / CROWD_HALF_LIFE_HRS))
+                for a in arrs:
+                    if _target > float(a[_rr, _cc]):
+                        a[_rr, _cc] = _target
             applied += 1
         except Exception:
             continue

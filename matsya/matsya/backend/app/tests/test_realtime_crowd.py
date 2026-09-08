@@ -78,3 +78,24 @@ def test_report_applies_immediately():
         assert float(arr[rr, cc]) >= 1.0  # visible without waiting for next tick
     finally:
         _clean()
+
+
+def test_zero_report_clears_cell():
+    import numpy as np
+    from fastapi.testclient import TestClient
+    from app.main import app
+    from app.services.simulation_store import store
+    from app.services.realtime.manager import REALTIME_ID
+    from app.services.snapshots import load_snapshots
+    from app.services.analysis import _lat_lon_to_row_col
+    _realtime()
+    try:
+        c = TestClient(app)
+        assert c.post("/api/v1/crowd/reports", json={"lat": 13.10, "lon": 80.17, "depthCm": 200, "kind": "flooded"}).status_code == 201
+        assert c.post("/api/v1/crowd/reports", json={"lat": 13.10, "lon": 80.17, "depthCm": 0, "kind": "flooded"}).status_code == 201
+        snaps, _, bbox = load_snapshots(store.get(REALTIME_ID))
+        arr = np.asarray(snaps[-1])
+        rr, cc = _lat_lon_to_row_col(13.10, 80.17, list(bbox), *arr.shape)
+        assert float(arr[rr, cc]) == 0.0  # authoritative dry observation wins
+    finally:
+        _clean()
