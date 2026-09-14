@@ -226,3 +226,11 @@ def get_source(name="dummy"):
         return cls()
     except Exception:
         return DummyWeather()
+
+
+def is_known(name):
+    """True when name is a registered source."""
+    try:
+        return str(name or "") in _REGISTRY
+    except Exception:
+        return False
