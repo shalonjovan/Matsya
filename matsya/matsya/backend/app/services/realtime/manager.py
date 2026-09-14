@@ -327,7 +327,9 @@ def get_status(tick_minutes=TICK_MINUTES):
         _peak = _base
         try:
             for z in ((_rfd or {}).get("zones") or []):
-                _peak = max(_peak, float((z or {}).get("amount", 0.0) or 0.0))
+                _zz = z or {}
+                _peak = max(_peak, float(_zz.get("amount", 0.0) or 0.0),
+                            float(_zz.get("maxRain", 0.0) or 0.0))
         except Exception:
             pass
         _tick_at = _live.get("tickAt")
