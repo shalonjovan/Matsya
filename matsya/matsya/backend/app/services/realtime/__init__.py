@@ -1,3 +1,3 @@
-from app.services.realtime.weather import WeatherSource, DummyWeather, get_source
+from app.services.realtime.weather import WeatherSource, DummyWeather, OpenMeteoWeather, get_source
 
-__all__ = ["WeatherSource", "DummyWeather", "get_source"]
+__all__ = ["WeatherSource", "DummyWeather", "OpenMeteoWeather", "get_source"]
