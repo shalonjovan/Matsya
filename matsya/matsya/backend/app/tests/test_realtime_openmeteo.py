@@ -42,3 +42,32 @@ def test_openmeteo_registered():
     src = weather.get_source("openmeteo")
     assert type(src).__name__ == "OpenMeteoWeather"
     assert isinstance(src, weather.WeatherSource)
+
+
+def test_openmeteo_cells_parse_as_zones():
+    from datetime import datetime, timezone
+    from app.services.realtime.weather import OpenMeteoWeather
+    from app.services.rainfall_zones import parse_zones
+    w0 = datetime(2026, 9, 8, 18, 0, tzinfo=timezone.utc)
+    w1 = datetime(2026, 9, 8, 22, 0, tzinfo=timezone.utc)
+    src = OpenMeteoWeather(grid=3, _fetch=_stub_factory([SAMPLE] * 9))
+    d = src.fetch(w0, w1, [80.15, 13.08, 80.20, 13.13])
+    zl, dropped = parse_zones({"zones": d["rain"]})
+    assert len(zl) == 9 and dropped == []
+
+
+def test_openmeteo_requests_utc_timezone():
+    from datetime import datetime, timezone
+    from app.services.realtime.weather import OpenMeteoWeather
+    seen = {}
+
+    def _cap(url, timeout=15):
+        seen["url"] = url
+        return {"hourly": {"time": [], "precipitation": []}}
+
+    src = OpenMeteoWeather(grid=1, _fetch=_cap)
+    src.fetch(datetime(2026, 9, 8, 18, 0, tzinfo=timezone.utc),
+              datetime(2026, 9, 8, 22, 0, tzinfo=timezone.utc),
+              [80.15, 13.08, 80.20, 13.13])
+    assert "timezone=UTC" in seen["url"]
+    assert "forecast_days=2" in seen["url"]

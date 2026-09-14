@@ -22,6 +22,8 @@ def test_tick_creates_singleton():
         s = store.get(REALTIME_ID)
         _live = s.live if hasattr(s, "live") else s.get("live")
         assert _live is True
+        _st = s.status if hasattr(s, "status") else s.get("status")
+        assert str(getattr(_st, "value", _st)) == "Completed"
         r2 = tick()
         assert r2["simId"] == REALTIME_ID  # still one sim
     finally:

@@ -283,6 +283,16 @@ def tick(now=None, source=None, bbox=None):
         except Exception:
             pass
         ensure_flood(sim)
+        # pipeline done synchronously: mark Completed (no bg thread will do it)
+        try:
+            from app.models.simulation import StatusEnum
+            sim.status = StatusEnum.Completed
+            try:
+                sim.metadata.status = StatusEnum.Completed
+            except Exception:
+                pass
+        except Exception:
+            pass
         try:
             store._save(sim)
         except Exception:

@@ -138,8 +138,8 @@ class OpenMeteoWeather(WeatherSource):
         x1 = min(maxLon, lon + w / 2.0)
         y0 = max(minLat, lat - d / 2.0)
         y1 = min(maxLat, lat + d / 2.0)
-        return {"type": "Polygon", "coordinates": [[x0, y0], [x1, y0], [x1, y1],
-                                                    [x0, y1], [x0, y0]]}
+        ring = [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]
+        return {"type": "Polygon", "coordinates": [ring]}
 
     def fetch(self, window_start, window_end, bbox):
         import time as _time
@@ -164,7 +164,11 @@ class OpenMeteoWeather(WeatherSource):
         lats = ",".join(f"{la:.4f}" for _, la in pts)
         lons = ",".join(f"{lo:.4f}" for lo, _ in pts)
         url = (f"{self.BASE}?latitude={lats}&longitude={lons}"
-               f"&hourly=precipitation&past_days=1&forecast_days=1&timezone=auto")
+               f"&hourly=precipitation&past_days=1&forecast_days=2&timezone=UTC")
+        # NOTE: timezone=UTC (not auto) so the naive ISO timestamps Open-Meteo
+        # returns are truly UTC and window slicing needs no offset math.
+        # forecast_days=2 (not 1: that ends at today 23:59): the +12h half of
+        # the tick window must exist even late in the UTC day.
         raw = self._fetch(url, timeout=self.timeout)
         blocks = raw if isinstance(raw, list) else [raw]
         try:
