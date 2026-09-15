@@ -76,8 +76,8 @@ class Rainfall(BaseModel):
             return v
         if not isinstance(v, list):
             raise ValueError("zones must be a list")
-        if len(v) > 12:
-            raise ValueError("at most 12 rainfall zones")
+        if len(v) > 200:
+            raise ValueError("at most 200 rainfall zones")
         return v
 
     @classmethod

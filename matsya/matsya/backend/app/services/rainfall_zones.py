@@ -1,7 +1,7 @@
 """Spatial rainfall zones: absolute amounts painted on sub-areas. Last-painted wins."""
 import math
 
-MAX_ZONES = 12
+MAX_ZONES = 200
 PALETTE = ["#22d3ee", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#fb7185",
            "#60a5fa", "#f97316", "#2dd4bf", "#e879f9", "#a3e635", "#facc15"]
 

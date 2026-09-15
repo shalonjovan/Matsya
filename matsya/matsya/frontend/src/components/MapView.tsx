@@ -224,9 +224,8 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
                 if (!Array.isArray(ring) || ring.length < 4) return
                 const latlngs = ring.map((c: any) => [c[1], c[0]])
                 const color = ZONE_PALETTE[i % ZONE_PALETTE.length]
-                // Don't render debug zone tint for the live single-cell Chennai sim — flood is seamless
-                const isLiveSingle = (simulation as any)?.live === true && zones.length === 1
-                if (isLiveSingle) return
+                // Live Chennai fine grid (12×12) drives the flood in blending — don't paint its input tint at all
+                if ((simulation as any)?.live === true) return
                 const val = (z as any).amount ?? (z as any).maxRain
                 const label = val != null ? `${val}` : "—"
                 const poly = (L as any).polygon(latlngs, {

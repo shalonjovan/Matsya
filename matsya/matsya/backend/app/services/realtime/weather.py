@@ -115,9 +115,9 @@ class OpenMeteoWeather(WeatherSource):
 
     BASE = "https://api.open-meteo.com/v1/forecast"
 
-    def __init__(self, timeout=15, grid=1, cache_s=300, _fetch=None):
+    def __init__(self, timeout=15, grid=12, cache_s=300, _fetch=None):
         self.timeout = timeout
-        self.grid = max(1, min(5, int(grid or 1)))
+        self.grid = max(1, min(12, int(grid or 12)))
         self.cache_s = max(0, int(cache_s or 0))
         self._fetch = _fetch or _default_fetch
         self._cache = {}
