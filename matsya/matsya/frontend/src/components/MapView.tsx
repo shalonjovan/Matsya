@@ -224,11 +224,16 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
                 if (!Array.isArray(ring) || ring.length < 4) return
                 const latlngs = ring.map((c: any) => [c[1], c[0]])
                 const color = ZONE_PALETTE[i % ZONE_PALETTE.length]
+                // Don't render debug zone tint for the live single-cell Chennai sim — flood is seamless
+                const isLiveSingle = (simulation as any)?.live === true && zones.length === 1
+                if (isLiveSingle) return
+                const val = (z as any).amount ?? (z as any).maxRain
+                const label = val != null ? `${val}` : "—"
                 const poly = (L as any).polygon(latlngs, {
                   color, weight: 2, dashArray: "4, 3",
-                  fillColor: color, fillOpacity: 0.25,
+                  fillColor: color, fillOpacity: 0.12,
                 })
-                poly.bindTooltip(`${z.id ?? "z" + (i + 1)}: ${z.amount} ${z.unit === "total" ? "mm total" : "mm/hr"}`, { sticky: true })
+                poly.bindTooltip(`${z.id ?? "z" + (i + 1)}: ${label} ${z.unit === "total" ? "mm total" : "mm/hr"}`, { sticky: true })
                 poly.addTo(zg)
               } catch {}
             })

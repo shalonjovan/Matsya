@@ -61,7 +61,16 @@ function formatBbox(bbox?: [number, number, number, number] | number[]) {
 }
 
 function formatRainfall(rainfall?: { rateMmHr?: number; durationHr?: number } | any) {
-  if (!rainfall || rainfall.rateMmHr == null) return "—"
+  if (!rainfall) return "—"
+  // Live/variable zones have no single rateMmHr — derive max across zones
+  if (rainfall.rateMmHr == null) {
+    if (Array.isArray(rainfall.zones) && rainfall.zones.length) {
+      const max = Math.max(...rainfall.zones.map((z: any) => Number(z.amount ?? z.maxRain ?? 0)))
+      const dur = rainfall.durationHr ?? 24
+      return `${max} mm/hr (zonal) × ${dur} hr`
+    }
+    return "—"
+  }
   const rate = rainfall.rateMmHr
   const dur = rainfall.durationHr
   if (dur != null) return `${rate} mm/hr × ${dur} hr`

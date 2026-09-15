@@ -8,7 +8,8 @@ from datetime import datetime, timezone, timedelta
 
 REALTIME_ID = "realtime-chennai-01"
 WINDOW_HOURS = 12
-DEFAULT_BBOX = [80.15, 13.08, 80.20, 13.13]
+# Whole Chennai (from assets/chennai_border.geojson envelope) — live sim covers the city
+DEFAULT_BBOX = [80.13968, 13.01593, 80.28967, 13.14146]
 TICK_MINUTES = 15
 CROWD_KINDS = ("drain", "flooded", "other")
 CROWD_MAX = 200
