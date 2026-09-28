@@ -14,6 +14,8 @@ import WaterbodyInspector from "./WaterbodyInspector"
 import type { Simulation } from "../types/simulation"
 import SafeRoute from "./SafeRoute"
 import LiveRealtime from "./LiveRealtime"
+import RainCellInspector from "./RainCellInspector"
+import { findCellZone, liveNowHour } from "../utils/rainGrid"
 import {
   Layers,
   Crosshair,
@@ -28,12 +30,13 @@ import {
 export default function MapShell({ simulation }: { simulation: Simulation }) {
   const [selectedPoint, setSelectedPoint] = useState<any>(null)
   const [selectedWaterbody, setSelectedWaterbody] = useState<string | null>(null)
+  const [selectedCell, setSelectedCell] = useState<{ zone: any; index: number; grid: number | null } | null>(null)
   const [time, setTime] = useState(0)
   const floodSteps = Number((simulation as any)?.flood?.steps ?? (simulation as any)?.flood?.stats?.steps ?? 73) || 73
   const tmax = Math.max(0, floodSteps - 1)
   const mpf = Number((simulation as any)?.flood?.stats?.minutesPerFrame ?? 5) || 5
   useEffect(() => { setTime(t => Math.min(t, tmax)) }, [tmax])
-  useEffect(() => { setRoute(null) }, [simulation.id])
+  useEffect(() => { setRoute(null); setSelectedCell(null) }, [simulation.id])
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeTab, setActiveTab] = useState<"LAYERS" | "INSPECTOR" | "IMPACTS" | "REPORTS" | "ROUTES" | "LIVE" | "ALL">("LAYERS")
   const [route, setRoute] = useState<{ safest: [number, number][]; fastest: [number, number][] | null; dest: { lat: number; lon: number } } | null>(null)
@@ -47,6 +50,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
     water:{visible:true,opacity:0.7},
     infra:{visible:true,opacity:0.8},
     other:{visible:false,opacity:0.7},
+    rainGrid:{visible:true,opacity:0.55},
     roads:{visible:true},
     buildings:{visible:true},
     rivers:{visible:true},
@@ -62,6 +66,14 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
 
   const handleWaterbodySelect = (wbId: string) => {
     setSelectedWaterbody(wbId)
+    setActiveTab("INSPECTOR")
+    setSidebarOpen(true)
+  }
+
+  const handleCellSelect = (cell: any) => {
+    const found = findCellZone(simulation, cell?.zoneId)
+    if (!found) return
+    setSelectedCell(found)
     setActiveTab("INSPECTOR")
     setSidebarOpen(true)
   }
@@ -90,6 +102,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
               time={Math.min(time, tmax)}
               onPointSelect={handlePointSelect}
               onWaterbodySelect={handleWaterbodySelect}
+              onCellSelect={handleCellSelect}
               route={route}
               floodNonce={floodNonce}
             />
@@ -321,6 +334,14 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
 
               {(activeTab === "ALL" || activeTab === "INSPECTOR") && (
                 <>
+                  <RainCellInspector
+                    cell={selectedCell?.zone ?? null}
+                    index={selectedCell?.index ?? 0}
+                    grid={selectedCell?.grid ?? null}
+                    time={Math.min(time, tmax)}
+                    mpf={mpf}
+                    live={(simulation as any)?.results?.live ?? null}
+                  />
                   <PointInspector point={selectedPoint} />
                   <WaterbodyInspector waterbodyId={selectedWaterbody} />
                 </>
@@ -358,7 +379,19 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
       </div>
 
       {/* Persistent Bottom Timeline */}
-      <Timeline time={Math.min(time, tmax)} onChange={setTime} max={tmax} minutesPerFrame={mpf} />
+      <Timeline
+        time={Math.min(time, tmax)}
+        onChange={setTime}
+        max={tmax}
+        minutesPerFrame={mpf}
+        nowFrame={(() => {
+          try {
+            if (!(simulation as any)?.live) return null
+            const h = liveNowHour((simulation as any)?.results?.live)
+            return h == null ? null : h * 60 / mpf
+          } catch { return null }
+        })()}
+      />
     </div>
   )
 }

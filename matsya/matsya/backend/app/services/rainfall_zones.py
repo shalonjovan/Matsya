@@ -1,19 +1,38 @@
 """Spatial rainfall zones: absolute amounts painted on sub-areas. Last-painted wins."""
 import math
 
-MAX_ZONES = 200
+MAX_ZONES = 12
+# Hard ceiling for live fine grids (12x12 = 144). The per-request allowance
+# travels in the rainfall dict as ``maxZones`` (stamped by the realtime tick
+# only); every other caller gets the normal MAX_ZONES cap.
+MAX_LIVE_ZONES = 200
 PALETTE = ["#22d3ee", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#fb7185",
            "#60a5fa", "#f97316", "#2dd4bf", "#e879f9", "#a3e635", "#facc15"]
 
 
-def parse_zones(rainfall):
-    """Split valid/invalid zone dicts. Returns (zones, dropped_ids). Never raises."""
+def parse_zones(rainfall, max_zones=None):
+    """Split valid/invalid zone dicts. Returns (zones, dropped_ids). Never raises.
+
+    Allowance is ``max_zones`` when given, else the rainfall dict's
+    ``maxZones`` marker (live fine grid only), else MAX_ZONES. Always
+    clamped to [1, MAX_LIVE_ZONES] so a hostile payload can't force
+    unbounded rasterize work.
+    """
+    try:
+        _marker = (rainfall or {}).get("maxZones")
+    except Exception:
+        _marker = None
+    try:
+        cap = int(max_zones if max_zones is not None else (_marker if _marker is not None else MAX_ZONES))
+    except Exception:
+        cap = MAX_ZONES
+    cap = max(1, min(MAX_LIVE_ZONES, cap))
     zones, dropped = [], []
     try:
         raw = (rainfall or {}).get("zones") or []
     except Exception:
         return [], []
-    for z in raw[:MAX_ZONES * 2]:
+    for z in raw[:cap * 2]:
         try:
             zid = str(z.get("id", "z"))
             poly = z.get("polygon") or {}
@@ -61,14 +80,14 @@ def parse_zones(rainfall):
                 dropped.append(str((z or {}).get("id", "?")))
             except Exception:
                 dropped.append("?")
-    if len(zones) > MAX_ZONES:
+    if len(zones) > cap:
         # valid but over cap: report as dropped so callers know what was ignored
-        for _z in zones[MAX_ZONES:]:
+        for _z in zones[cap:]:
             try:
                 dropped.append(str(_z.get("id", "z")))
             except Exception:
                 dropped.append("?")
-    return zones[:MAX_ZONES], dropped
+    return zones[:cap], dropped
 
 
 def _grid_transform(bbox, width, height):

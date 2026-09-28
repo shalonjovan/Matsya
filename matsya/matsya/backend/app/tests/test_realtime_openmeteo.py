@@ -71,3 +71,30 @@ def test_openmeteo_requests_utc_timezone():
               [80.15, 13.08, 80.20, 13.13])
     assert "timezone=UTC" in seen["url"]
     assert "forecast_days=2" in seen["url"]
+
+
+def test_openmeteo_cell_series_contract_for_grid_ui():
+    """The live grid UI depends on this shape: one variable hourly series
+    per cell, totalTime == the 24h tick window, maxRain == peak."""
+    from datetime import timedelta
+    from app.services.realtime.weather import OpenMeteoWeather
+    from app.services.realtime.manager import WINDOW_HOURS
+    now = datetime(2026, 9, 15, 8, 44, tzinfo=timezone.utc)
+    w0, w1 = now - timedelta(hours=WINDOW_HOURS), now + timedelta(hours=WINDOW_HOURS)
+    base = datetime(2026, 9, 14, 0, 0)
+    times = [(base + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M") for i in range(72)]
+    vals = [float(i % 5) for i in range(72)]
+    payload = {"hourly": {"time": times, "precipitation": vals}}
+    src = OpenMeteoWeather(grid=12, _fetch=_stub_factory([payload] * 144))
+    d = src.fetch(w0, w1, [80.13968, 13.01593, 80.28967, 13.14146])
+    assert len(d["rain"]) == 144
+    for z in d["rain"]:
+        assert z["mode"] == "variable" and z["unit"] == "rate"
+        assert z["totalTime"] == 2 * WINDOW_HOURS == 24
+        pts = z["points"]
+        assert len(pts) == 24
+        ts = [p["time"] for p in pts]
+        assert ts == sorted(ts) and ts[0] >= 0 and ts[-1] < 24
+        assert z["maxRain"] == max(p["amount"] for p in pts)
+        poly = z["polygon"]
+        assert poly["type"] == "Polygon" and len(poly["coordinates"][0]) >= 4

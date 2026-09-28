@@ -240,8 +240,10 @@ def tick(now=None, source=None, bbox=None):
                               "amount": _r, "unit": "rate", "polygon": _poly})
         except Exception:
             continue
+    from app.services.rainfall_zones import MAX_LIVE_ZONES
     rainfall = {"mode": "constant", "rateMmHr": base_rate, "durationHr": 2 * WINDOW_HOURS,
-                "constantRate": base_rate, "zones": zones}
+                "constantRate": base_rate, "zones": zones,
+                "maxZones": MAX_LIVE_ZONES}
     states = {}
     for lake in (feed.get("lakes") or []):
         try:

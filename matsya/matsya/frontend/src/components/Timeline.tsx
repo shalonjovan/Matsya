@@ -1,8 +1,11 @@
 
 import { useEffect, useState } from "react"
 import { Clock } from "lucide-react"
+import { formatSignedOffset } from "../utils/rainGrid"
 
-export default function Timeline({ time, onChange, max = 72, minutesPerFrame = 5 }: { time: number; onChange: (n: number) => void; max?: number; minutesPerFrame?: number }) {
+export default function Timeline({ time, onChange, max = 72, minutesPerFrame = 5, nowFrame = null }: {
+  time: number; onChange: (n: number) => void; max?: number; minutesPerFrame?: number; nowFrame?: number | null
+}) {
   const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(350)
 
@@ -39,6 +42,15 @@ export default function Timeline({ time, onChange, max = 72, minutesPerFrame = 5
   const hours = Math.floor(totalMin / 60)
   const minutes = Math.floor(totalMin % 60)
   const timeFormatted = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
+
+  // Live window context: signed offset of the playhead from the tick (NOW).
+  const live = nowFrame != null && isFinite(Number(nowFrame)) && max > 0
+  const diffMin = live ? (time - Number(nowFrame)) * mpf : 0
+  const windowBadge = !live ? null
+    : Math.abs(diffMin) <= mpf / 2 ? "NOW"
+    : `${formatSignedOffset(diffMin)}${diffMin < 0 ? " ago" : " ahead"}`
+  const nowPct = live ? Math.max(0, Math.min(100, Number(nowFrame) / max * 100)) : 0
+  const edgeLabel = (frame: number) => formatSignedOffset(Math.round((frame - Number(nowFrame)) * mpf))
 
   return (
     <div 
@@ -107,10 +119,25 @@ export default function Timeline({ time, onChange, max = 72, minutesPerFrame = 5
               aria-valuemin={0}
               aria-valuemax={max}
               aria-valuenow={time}
-              aria-valuetext={`${timeFormatted} elapsed`}
+              aria-valuetext={windowBadge ?? `${timeFormatted} elapsed`}
               className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none focus-ring" 
             />
+            {live && (
+              <div
+                data-testid="timeline-now-marker"
+                title="NOW (live tick)"
+                className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-[3px] h-5 bg-amber-400 rounded pointer-events-none"
+                style={{ left: `${nowPct}%` }}
+              />
+            )}
           </div>
+          {live && (
+            <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
+              <span data-testid="timeline-window-start">{edgeLabel(0)}</span>
+              <span className="text-amber-300/90">NOW</span>
+              <span data-testid="timeline-window-end">{edgeLabel(max)}</span>
+            </div>
+          )}
           {/* Milestone markers - Commented out to declutter timeline */}
           {/*
           <div className="flex justify-between text-[10px] text-slate-400 font-mono px-0.5">
@@ -127,7 +154,9 @@ export default function Timeline({ time, onChange, max = 72, minutesPerFrame = 5
           <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 rounded-xl border border-slate-800 font-mono">
             <Clock className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-sm font-bold text-cyan-300">{timeFormatted}</span>
-            <span className="text-[10px] text-slate-400">HRS</span>
+            {windowBadge
+              ? <span className="text-[10px] font-bold text-amber-300" data-testid="timeline-window-clock">{windowBadge}</span>
+              : <span className="text-[10px] text-slate-400">HRS</span>}
           </div>
 
           {/* Telemetry subtitle - Commented out to declutter timeline */}

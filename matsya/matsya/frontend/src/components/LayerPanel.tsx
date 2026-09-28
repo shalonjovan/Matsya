@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { Layers, Mountain, GitFork, Droplets, Waves, Building2 } from "lucide-react"
+import { Layers, Mountain, GitFork, Droplets, Waves, Building2, CloudRain } from "lucide-react"
 
 export default function LayerPanel({ layers, onChange, simulation }: any) {
   const [local, setLocal] = useState(layers)
@@ -73,6 +73,21 @@ export default function LayerPanel({ layers, onChange, simulation }: any) {
       layers:["admin","land cover"]
     },
   ]
+
+  // Live fine-grid toggle: only for live sims carrying more than the
+  // normal 12 zone footprints.
+  const liveZones = (simulation as any)?.live === true
+    ? (simulation as any)?.rainfall?.zones : null
+  if (Array.isArray(liveZones) && liveZones.length > 12) {
+    groups.push({
+      id: "rainGrid",
+      label: "Rain grid",
+      unit: "mm/hr",
+      icon: CloudRain,
+      color: "text-cyan-300",
+      layers: [`${liveZones.length} Open-Meteo cells — tint = rate at the playhead`],
+    })
+  }
 
   return (
     <div className="p-3.5 border-b border-slate-800/80 bg-slate-950/60">

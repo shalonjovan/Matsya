@@ -3,6 +3,15 @@ import type { Simulation } from "../types/simulation"
 import { ZONE_PALETTE } from "../types/simulation"
 import "leaflet/dist/leaflet.css"
 import { drainColor } from "../utils/hydro"
+import {
+  buildRainGridFeatures,
+  rainGridStyle,
+  cellTooltip,
+  cellWhenBadge,
+  frameToWindowHour,
+  rateAtHour,
+  zoneAtPoint,
+} from "../utils/rainGrid"
 
 const BASEMAP_TILES: Record<string, { url: string, attr: string }> = {
   dark: {
@@ -19,12 +28,16 @@ const BASEMAP_TILES: Record<string, { url: string, attr: string }> = {
   }
 }
 
-export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect, route, floodNonce }: any) {
+export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect, onCellSelect, route, floodNonce }: any) {
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const layerRefs = useRef<any>({})
   const [basemap, setBasemap] = useState<"dark" | "hot" | "satellite">("hot")
   const [dataWarn, setDataWarn] = useState<string | null>(null)
+  // Current slider frame for closures registered once (map click probe).
+  // Without this the probe keeps reporting the frame from first render.
+  const timeRef = useRef(time)
+  useEffect(()=>{ timeRef.current = time }, [time])
   // Track current simulation id to detect changes
   const prevSimIdRef = useRef<string | null>(null)
   useEffect(()=>{
@@ -240,9 +253,58 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
             layerRefs.current.zoneLayers = zg
           }
         } catch {}
+        // Live fine-grid overlay (12x12 Open-Meteo cells): one GeoJSON layer
+        // so a single setStyle re-tints all cells as the slider moves.
+        // Non-live sims keep the palette zone block above, untouched.
+        try {
+          const liveZones = (simulation as any)?.live === true
+            ? (simulation as any)?.rainfall?.zones : null
+          if (Array.isArray(liveZones) && liveZones.length > 12) {
+            const liveMeta = (simulation as any)?.results?.live ?? null
+            const mpfInit = Number((simulation as any)?.flood?.stats?.minutesPerFrame) || 5
+            const hourInit = frameToWindowHour(time ?? 0, mpfInit)
+            const zonesById: Record<string, any> = {}
+            for (const z of liveZones) { try { zonesById[String(z?.id)] = z } catch {} }
+            layerRefs.current.rainGridZones = zonesById
+            const fc = buildRainGridFeatures(liveZones, { hour: hourInit })
+            const gridLayer = (L as any).geoJSON(fc, {
+              style: (f: any) => rainGridStyle(
+                f?.properties ?? { rate: 0 }, (layers as any)?.rainGrid?.opacity ?? 0.55),
+              onEachFeature: (f: any, layer: any) => {
+                try {
+                  const props = f?.properties ?? {}
+                  layer.bindTooltip(cellTooltip(props, cellWhenBadge(
+                    frameToWindowHour(timeRef.current ?? 0, mpfInit), mpfInit, liveMeta)), { sticky: true })
+                  // No stopPropagation: the map click probe fires too, so one
+                  // click fills both the cell panel and the depth inspector.
+                  // The map-level handler resolves the cell by geography, which
+                  // is what actually lands in the app: the decorative drains
+                  // and waterbodies layers sit above the grid and win the
+                  // canvas hit-test, so a per-layer click alone never fires.
+                  layer.on("click", () => onCellSelect?.({ zoneId: props.id, ...props }))
+                } catch {}
+              },
+            })
+            const gridVisible = (layers as any)?.rainGrid?.visible ?? true
+            if (gridVisible) gridLayer.addTo(map)
+            layerRefs.current.rainGrid = gridLayer
+          }
+        } catch {}
         map.on("click", (e:any)=>{
           const lat=e.latlng.lat, lon=e.latlng.lng
-          fetch(`/api/simulations/${simulation.id}/point?lat=${lat}&lon=${lon}&time=${time}`).then(r=>r.json()).then(j=>onPointSelect?.(j)).catch(()=>onPointSelect?.({lat,lon, elevation:15.5, floodDepth:0.42, velocity:0.3}))
+          // Resolve the grid cell by geography, not by canvas hit-testing:
+          // the decorative drains/waterbodies layers sit above the grid and
+          // would otherwise swallow the click. Both the cell panel and the
+          // depth probe fill from this one click.
+          try {
+            const _liveZones = (simulation as any)?.live === true
+              ? (simulation as any)?.rainfall?.zones : null
+            if (Array.isArray(_liveZones) && _liveZones.length > 0) {
+              const _hit = zoneAtPoint(_liveZones, lon, lat)
+              if (_hit) onCellSelect?.({ zoneId: String(_hit.zone?.id ?? "") })
+            }
+          } catch {}
+          fetch(`/api/simulations/${simulation.id}/point?lat=${lat}&lon=${lon}&time=${timeRef.current ?? 0}`).then(r=>r.json()).then(j=>onPointSelect?.(j)).catch(()=>onPointSelect?.({lat,lon, elevation:15.5, floodDepth:0.42, velocity:0.3}))
         })
         mapRef.current = map
         // Drains layer: all drains from drains.kml 10257 — for Drainage group
@@ -424,6 +486,33 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           if (!map.hasLayer(layerRefs.current.infraGroup)) layerRefs.current.infraGroup.addTo(map)
         } else {
           if (map.hasLayer(layerRefs.current.infraGroup)) map.removeLayer(layerRefs.current.infraGroup)
+        }
+      } catch {}
+    }
+    // live rain grid: visibility toggle + re-tint every cell at the playhead
+    if (layerRefs.current.rainGrid) {
+      const gridVisible = (layers as any)?.rainGrid?.visible ?? true
+      const gridOpacity = (layers as any)?.rainGrid?.opacity ?? 0.55
+      try {
+        if (gridVisible) {
+          if (!map.hasLayer(layerRefs.current.rainGrid)) layerRefs.current.rainGrid.addTo(map)
+          const mpfNow = Number((simulation as any)?.flood?.stats?.minutesPerFrame) || 5
+          const liveMeta = (simulation as any)?.results?.live ?? null
+          const hourNow = frameToWindowHour(time ?? 0, mpfNow)
+          const zonesById = layerRefs.current.rainGridZones ?? {}
+          const when = cellWhenBadge(hourNow, mpfNow, liveMeta)
+          layerRefs.current.rainGrid.eachLayer((l: any) => {
+            try {
+              const zid = String(l?.feature?.properties?.id ?? "")
+              const zone = zonesById[zid]
+              const rate = zone ? rateAtHour(zone.points, hourNow) : Number(l?.feature?.properties?.rate) || 0
+              const props = { ...(l?.feature?.properties ?? {}), rate }
+              l.setStyle(rainGridStyle(props, gridOpacity))
+              try { l.setTooltipContent(cellTooltip(props, when)) } catch {}
+            } catch {}
+          })
+        } else {
+          if (map.hasLayer(layerRefs.current.rainGrid)) map.removeLayer(layerRefs.current.rainGrid)
         }
       } catch {}
     }
