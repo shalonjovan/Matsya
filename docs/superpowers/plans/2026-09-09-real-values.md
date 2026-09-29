@@ -150,4 +150,3 @@ def test_tick_empty_lakes_ok():
 - [ ] **Step 1: Live check** — restart backend on the branch, `REALTIME_SOURCE=openmeteo tick()` via python, confirm `source: openmeteo`, rain cells = 9, status endpoint shows real rain-now; one normal-tick regression (dummy default unchanged).
 - [ ] **Step 2: Docs** — `matsya/API_V1.md` gains a short "Live weather source" note (env var, fallback, lake caveat). Commit docs: `git commit -m "docs(realtime): Open-Meteo source note"`.
 - [ ] **Step 3: Confirm no merge** — stay on `real-values`. Report live rain-now number + tick result.
-
