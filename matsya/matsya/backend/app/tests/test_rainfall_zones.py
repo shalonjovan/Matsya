@@ -137,3 +137,30 @@ def test_both_sources_off_is_dry():
     snaps2, _, _ = generate_flood([80.15, 13.08, 80.20, 13.13], rf, width=20, height=20, steps=3)
     assert st["totalRainMm"] == 0.0  # no rainfall falls (channel initial storage may still pond)
     assert np.array_equal(np.asarray(snaps), np.asarray(snaps2))
+
+def test_live_maxzones_marker_keeps_fine_grid():
+    """The realtime tick stamps maxZones so all 144 live cells survive;
+    unmarked payloads (normal sims, nowcasts) stay capped at 12."""
+    from app.services.rainfall_zones import parse_zones, MAX_ZONES
+    zones = [{"id": f"om-{i}", "amount": 1.0, "unit": "rate",
+              "polygon": {"type": "Polygon",
+                          "coordinates": [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]]}} for i in range(144)]
+    live, dropped_live = parse_zones({"zones": zones, "maxZones": 200})
+    plain, dropped_plain = parse_zones({"zones": zones})
+    assert len(live) == 144 and dropped_live == []
+    assert len(plain) == MAX_ZONES == 12 and len(dropped_plain) > 0
+
+def test_live_zone_allowance_only_for_realtime_singleton():
+    """A normal simulation cannot claim the live fine-grid allowance merely
+    by setting live=True; only the realtime singleton may exceed 12 zones."""
+    import pytest
+    from pydantic import ValidationError
+    from app.models.simulation import Simulation
+    from app.services.realtime.manager import REALTIME_ID
+    zones = [{"id": f"om-{i}"} for i in range(144)]
+    base = {"name": "not-live", "area": {"bbox": [80.15, 13.08, 80.20, 13.13], "crs": "EPSG:4326"},
+            "rainfall": {"rateMmHr": 0, "durationHr": 24, "zones": zones, "maxZones": 200}, "live": True}
+    with pytest.raises(ValidationError):
+        Simulation.model_validate({**base, "id": "ordinary-simulation"})
+    sim = Simulation.model_validate({**base, "id": REALTIME_ID})
+    assert sim.live is True and len(sim.rainfall.zones or []) == 144

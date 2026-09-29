@@ -60,8 +60,26 @@ function formatBbox(bbox?: [number, number, number, number] | number[]) {
   return `${fmt(minLon)}-${fmt(maxLon)}, ${fmt(minLat)}-${fmt(maxLat)}`
 }
 
-function formatRainfall(rainfall?: { rateMmHr?: number; durationHr?: number } | any) {
-  if (!rainfall || rainfall.rateMmHr == null) return "—"
+function formatRainfall(rainfall?: { rateMmHr?: number; durationHr?: number } | any, live?: boolean) {
+  if (!rainfall) return "—"
+  const zones = Array.isArray(rainfall.zones) ? rainfall.zones : []
+  // Live grid (and any zoned storm read on a live card): the headline is the
+  // peak cell rate. The tick always stamps a numeric whole-bbox base rate
+  // (0.0 when the feed has no base cell), which must not mask the cells.
+  if (live && zones.length) {
+    const max = Math.max(0, ...zones.map((z: any) => Number(z.amount ?? z.maxRain ?? 0) || 0))
+    const dur = rainfall.durationHr ?? 24
+    return `${max} mm/hr (zonal) × ${dur} hr`
+  }
+  // Live/variable zones have no single rateMmHr — derive max across zones
+  if (rainfall.rateMmHr == null) {
+    if (zones.length) {
+      const max = Math.max(...zones.map((z: any) => Number(z.amount ?? z.maxRain ?? 0)))
+      const dur = rainfall.durationHr ?? 24
+      return `${max} mm/hr (zonal) × ${dur} hr`
+    }
+    return "—"
+  }
   const rate = rainfall.rateMmHr
   const dur = rainfall.durationHr
   if (dur != null) return `${rate} mm/hr × ${dur} hr`
@@ -415,7 +433,7 @@ export default function SelectSimulation({
             <div className="text-[10px] font-mono text-emerald-300 font-semibold tracking-wider uppercase">LIVE • updating</div>
             <h3 className="text-white font-bold text-lg leading-snug truncate">{liveSim.name}</h3>
             <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-              {formatRainfall((liveSim as any).rainfall)} • updated {formatLastModified(liveSim)}
+              {formatRainfall((liveSim as any).rainfall, true)} • updated {formatLastModified(liveSim)}
             </div>
           </div>
           <button

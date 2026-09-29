@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
 import uuid
 from datetime import datetime, timezone
@@ -68,6 +68,9 @@ class Rainfall(BaseModel):
     # rainfall source toggles (both default on = legacy behavior)
     useBase: bool = True
     useZones: bool = True
+    # zone allowance marker: stamped by the realtime tick ONLY (live fine
+    # grid). parse_zones reads it; normal sims never set it (None -> 12).
+    maxZones: int | None = None
 
     @field_validator("zones", mode="before")
     @classmethod
@@ -76,8 +79,8 @@ class Rainfall(BaseModel):
             return v
         if not isinstance(v, list):
             raise ValueError("zones must be a list")
-        if len(v) > 12:
-            raise ValueError("at most 12 rainfall zones")
+        if len(v) > 200:
+            raise ValueError("at most 200 rainfall zones")
         return v
 
     @classmethod
@@ -164,3 +167,21 @@ class Simulation(BaseModel):
     live: bool = False
     metadata: Metadata = Field(default_factory=Metadata)
     status: StatusEnum = StatusEnum.Ready
+
+    @model_validator(mode="after")
+    def check_live_zone_allowance(self):
+        # The 12-zone cap applies everywhere except the canonical realtime
+        # singleton. Live sims (realtime tick) may carry the fine grid up to
+        # the absolute ceiling. Import here to avoid a model/service cycle.
+        try:
+            from app.services.realtime.manager import REALTIME_ID
+        except Exception:
+            REALTIME_ID = "realtime-chennai-01"
+        try:
+            _zones = (self.rainfall.zones if self.rainfall is not None else None) or []
+        except Exception:
+            _zones = []
+        _live_ok = bool(self.live) and self.id == REALTIME_ID
+        if len(_zones) > 12 and not _live_ok:
+            raise ValueError("at most 12 rainfall zones")
+        return self

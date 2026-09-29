@@ -8,7 +8,8 @@ from datetime import datetime, timezone, timedelta
 
 REALTIME_ID = "realtime-chennai-01"
 WINDOW_HOURS = 12
-DEFAULT_BBOX = [80.15, 13.08, 80.20, 13.13]
+# Whole Chennai (from assets/chennai_border.geojson envelope) — live sim covers the city
+DEFAULT_BBOX = [80.13968, 13.01593, 80.28967, 13.14146]
 TICK_MINUTES = 15
 CROWD_KINDS = ("drain", "flooded", "other")
 CROWD_MAX = 200
@@ -188,30 +189,61 @@ def _window(now):
     return now - timedelta(hours=WINDOW_HOURS), now + timedelta(hours=WINDOW_HOURS)
 
 
-def tick(now=None, source="dummy", bbox=None):
-    """Rebuild the realtime sim from the feed window. Returns tick report."""
-    from app.services.realtime.weather import get_source
+def tick(now=None, source=None, bbox=None):
+    """Rebuild the realtime sim from the feed window. Returns tick report.
+
+    source=None reads REALTIME_SOURCE env (default "dummy"). Unknown names
+    and ANY fetch failure fall back to dummy, reported as "dummy-fallback".
+    """
+    import os
+    from app.services.realtime.weather import get_source, is_known, DummyWeather
     from app.services.simulation_store import store
     now = now or _utcnow()
     bbox = list(bbox or DEFAULT_BBOX)
     w0, w1 = _window(now)
-    feed = get_source(source).fetch(w0, w1, bbox)
-    rain = feed.get("rain") or []
-    # polygon cells -> rate zones; whole-bbox base cell -> base rate
+    name = source or os.getenv("REALTIME_SOURCE", "dummy") or "dummy"
+    label = name
+    try:
+        src = get_source(name) if is_known(name) else DummyWeather()
+        if not is_known(name):
+            label = "dummy-fallback"
+        feed = src.fetch(w0, w1, bbox)
+    except Exception:
+        feed = DummyWeather().fetch(w0, w1, bbox)
+        label = "dummy-fallback"
+    rain = (feed or {}).get("rain") or []
+    # polygon cells -> zones (variable-curve cells pass through, else constant
+    # rate); whole-bbox base cell -> base rate
     base_rate = 0.0
     zones = []
     for i, cell in enumerate(rain):
         try:
-            _r = float(cell.get("rateMmHr", 0.0) or 0.0)
-            _poly = cell.get("polygon")
+            _poly = (cell or {}).get("polygon")
             if _poly is None:
-                base_rate = _r
+                base_rate = float((cell or {}).get("rateMmHr", 0.0) or 0.0)
+                continue
+            if str((cell or {}).get("mode", "constant")) == "variable":
+                zones.append({
+                    "id": str((cell or {}).get("id", f"rt-{i}")),
+                    "mode": "variable",
+                    "unit": str((cell or {}).get("unit", "rate") or "rate"),
+                    "totalTime": float((cell or {}).get("totalTime") or 2 * WINDOW_HOURS),
+                    "maxRain": float((cell or {}).get("maxRain", 0.0) or 0.0),
+                    "points": [{"time": float(p.get("time", 0) or 0),
+                                "amount": float(p.get("amount", 0) or 0)}
+                               for p in ((cell or {}).get("points") or [])],
+                    "polygon": _poly,
+                })
             else:
-                zones.append({"id": f"rt-{i}", "amount": _r, "unit": "rate", "polygon": _poly})
+                _r = float((cell or {}).get("rateMmHr", 0.0) or 0.0)
+                zones.append({"id": str((cell or {}).get("id", f"rt-{i}")),
+                              "amount": _r, "unit": "rate", "polygon": _poly})
         except Exception:
             continue
+    from app.services.rainfall_zones import MAX_LIVE_ZONES
     rainfall = {"mode": "constant", "rateMmHr": base_rate, "durationHr": 2 * WINDOW_HOURS,
-                "constantRate": base_rate, "zones": zones}
+                "constantRate": base_rate, "zones": zones,
+                "maxZones": MAX_LIVE_ZONES}
     states = {}
     for lake in (feed.get("lakes") or []):
         try:
@@ -219,7 +251,7 @@ def tick(now=None, source="dummy", bbox=None):
         except Exception:
             continue
     live_meta = {"windowStart": w0.isoformat(), "windowEnd": w1.isoformat(),
-                 "tickAt": now.isoformat(), "source": feed.get("source", source),
+                 "tickAt": now.isoformat(), "source": label,
                  "rainCells": len(zones), "lakesApplied": len(states)}
     try:
         _exists = store.get(REALTIME_ID)
@@ -254,6 +286,16 @@ def tick(now=None, source="dummy", bbox=None):
         except Exception:
             pass
         ensure_flood(sim)
+        # pipeline done synchronously: mark Completed (no bg thread will do it)
+        try:
+            from app.models.simulation import StatusEnum
+            sim.status = StatusEnum.Completed
+            try:
+                sim.metadata.status = StatusEnum.Completed
+            except Exception:
+                pass
+        except Exception:
+            pass
         try:
             store._save(sim)
         except Exception:
@@ -288,7 +330,9 @@ def get_status(tick_minutes=TICK_MINUTES):
         _peak = _base
         try:
             for z in ((_rfd or {}).get("zones") or []):
-                _peak = max(_peak, float((z or {}).get("amount", 0.0) or 0.0))
+                _zz = z or {}
+                _peak = max(_peak, float(_zz.get("amount", 0.0) or 0.0),
+                            float(_zz.get("maxRain", 0.0) or 0.0))
         except Exception:
             pass
         _tick_at = _live.get("tickAt")

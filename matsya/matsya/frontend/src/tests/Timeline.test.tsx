@@ -18,4 +18,27 @@ describe("Timeline",()=>{
     render(<Timeline time={0} onChange={() => {}} max={23} minutesPerFrame={15} />)
     expect(screen.getByRole("slider")).toHaveAttribute("max", "23")
   })
+  it("marks NOW on the slider when nowFrame is given", () => {
+    render(<Timeline time={36} onChange={() => {}} max={72} minutesPerFrame={19.726027397260275} nowFrame={36.49} />)
+    const marker = screen.getByTestId("timeline-now-marker")
+    expect(marker).toBeInTheDocument()
+    expect(marker.style.left).toContain("50.6")
+  })
+  it("omits the NOW marker without nowFrame", () => {
+    render(<Timeline time={36} onChange={() => {}} max={72} minutesPerFrame={19.726027397260275} />)
+    expect(screen.queryByTestId("timeline-now-marker")).toBeNull()
+  })
+  it("shows the signed window offset at the playhead for live sims", () => {
+    const props = { onChange: () => {}, max: 72, minutesPerFrame: 19.726027397260275, nowFrame: 36.49 }
+    const { unmount } = render(<Timeline time={36} {...props} />)
+    expect(screen.getByTestId("timeline-window-clock")).toHaveTextContent("NOW")
+    unmount()
+    render(<Timeline time={0} {...props} />)
+    expect(screen.getByTestId("timeline-window-clock")).toHaveTextContent("−12:00")
+  })
+  it("labels the window ends relative to NOW", () => {
+    render(<Timeline time={36} onChange={() => {}} max={72} minutesPerFrame={19.726027397260275} nowFrame={36.49} />)
+    expect(screen.getByTestId("timeline-window-start")).toHaveTextContent("−12:00")
+    expect(screen.getByTestId("timeline-window-end")).toHaveTextContent("+11:40")
+  })
 })

@@ -28,4 +28,19 @@ describe("LayerPanel",()=>{
     render(<LayerPanel layers={{depth:{visible:true,opacity:0.8,palette:"greenred"}}} simulation={sim} />)
     expect(screen.getByText(/green.*yellow.*red/i)).toBeInTheDocument()
   })
+  it("toggles the live rain grid", ()=>{
+    let layers:any={rainGrid:{visible:true,opacity:0.55}}
+    const zones = Array.from({length:13},(_,i)=>({id:`om-${i}`}))
+    const sim:any={id:"live", live:true, rainfall:{zones}}
+    render(<LayerPanel layers={layers} onChange={(n:any)=>{layers=n}} simulation={sim} />)
+    const cb = screen.getByLabelText(/Rain grid/) as HTMLInputElement
+    expect(cb.checked).toBe(true)
+    fireEvent.click(cb)
+    expect(layers.rainGrid.visible).toBe(false)
+  })
+  it("hides the rain grid toggle for non-live sims", ()=>{
+    const sim:any={id:"1", rainfall:{zones:[{id:"z1"}]}}
+    render(<LayerPanel layers={{rainGrid:{visible:true,opacity:0.55}}} simulation={sim} />)
+    expect(screen.queryByLabelText(/Rain grid/)).toBeNull()
+  })
 })

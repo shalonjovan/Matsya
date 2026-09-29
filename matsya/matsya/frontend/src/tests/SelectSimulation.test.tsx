@@ -59,7 +59,6 @@ describe("SelectSimulation", () => {
     fireEvent.click(within(hero).getByText("Open"))
     expect(onOpen).toHaveBeenCalledWith("realtime-chennai-01")
   })
-
   it("hides the live entry when no live sim exists", async () => {
     ;(global.fetch as any).mockResolvedValueOnce({
       ok: true, json: () => Promise.resolve([{
@@ -74,5 +73,33 @@ describe("SelectSimulation", () => {
     await screen.findByText("Chennai")
     nowSpy.mockRestore()
     expect(screen.queryByTestId("live-hero")).not.toBeInTheDocument()
+  })
+
+  it("shows the zonal peak on the live hero when the base rate is zero", async () => {
+    const live = {
+      id: "realtime-chennai-01",
+      name: "Live — Chennai",
+      area: { bbox: [80.15, 13.08, 80.2, 13.13], crs: "EPSG:4326" },
+      // Open-Meteo ticks stamp a numeric 0.0 base rate; the headline must
+      // still come from the 144 variable cells, not the base rate.
+      rainfall: {
+        rateMmHr: 0, durationHr: 24,
+        zones: [
+          { id: "om-0", maxRain: 0.4, points: [{ time: 0.25, amount: 0.4 }] },
+          { id: "om-1", maxRain: 1.3, points: [{ time: 0.25, amount: 1.3 }] },
+        ],
+      },
+      status: "Completed",
+      live: true,
+      metadata: { updated: "2026-09-29T06:00:00Z" },
+    }
+    ;(global.fetch as any).mockResolvedValueOnce({
+      ok: true, json: () => Promise.resolve([live]),
+    })
+    const nowSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 93000)
+    render(<SelectSimulation onOpen={() => {}} />)
+    const hero = await screen.findByTestId("live-hero")
+    nowSpy.mockRestore()
+    expect(hero.textContent).toMatch(/1\.3 mm\/hr \(zonal\)/)
   })
 })

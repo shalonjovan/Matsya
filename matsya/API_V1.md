@@ -10,6 +10,14 @@ Units: depths **cm**, velocities **m/s**, lengths **m**, times **minutes since o
 
 Versioning promise: additive-only under `/api/v1`. Breaking changes go to `/api/v2`. Be gentle — heavy segment dumps are capped; use `limit`/`minPeakCm`.
 
+## Live weather source
+
+The realtime sim (`realtime-chennai-01`) rebuilds from a weather feed each tick. Sources live in `app/services/realtime/weather.py` behind the `WeatherSource` interface; the active one is `REALTIME_SOURCE` env (default `dummy`):
+- `dummy` — deterministic drizzle for tests/demos (0 base, ≤1mm/hr blips).
+- `openmeteo` — real hourly precipitation from Open-Meteo (`past_days=1`, `forecast_days=2`, `timezone=UTC`, no key), one variable-curve zone per grid cell over the sim bbox.
+- Any fetch failure or unknown name falls back to dummy, reported as `"dummy-fallback"` in tick/status responses.
+- Lake levels: Open-Meteo publishes no reservoir levels, so live fills stay assumed (global default) — documented, not invented.
+
 ## Endpoints
 
 ### `GET /api/v1/simulations/{id}/roads/segments`
