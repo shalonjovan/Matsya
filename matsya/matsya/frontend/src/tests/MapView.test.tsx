@@ -121,6 +121,24 @@ describe("MapView",()=>{
       HTMLCanvasElement.prototype.getContext = origGetContext
     }
   })
+  it("pins the selected point and clears it", async()=>{
+    const sim:any={id:"1", area:{bbox:[80.15,13.08,80.20,13.13]}, rainfall:{rateMmHr:50,durationHr:1},
+      flood:{floodUri:"/api/simulations/1/flood?time=0", stats:{maxDepth:0.5}}}
+    global.fetch = vi.fn((url)=>{
+      if(String(url).includes("/flood")) return Promise.resolve({ok:true, blob:()=>Promise.resolve(new Blob(["png"]))} as any)
+      return Promise.resolve({ok:true, json:()=>Promise.resolve({drains:{features:[]}, waterbodies:{features:[]}})} as any)
+    }) as any
+    const {container, rerender}=render(<MapView simulation={sim} time={0} selectedPoint={null} />)
+    await waitFor(()=> expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("/api/layers/drains")), {timeout:8000})
+    expect(container.querySelector(".matsya-click-pin")).toBeNull()
+    rerender(<MapView simulation={sim} time={0} selectedPoint={{lat:13.08,lon:80.21}} />)
+    await waitFor(()=> expect(container.querySelector(".matsya-click-pin")).toBeInTheDocument(), {timeout:5000})
+    expect(container.querySelectorAll(".matsya-click-pin")).toHaveLength(1)
+    rerender(<MapView simulation={sim} time={0} selectedPoint={{lat:13.09,lon:80.22}} />)
+    await waitFor(()=> expect(container.querySelectorAll(".matsya-click-pin")).toHaveLength(1), {timeout:5000})
+    rerender(<MapView simulation={sim} time={0} selectedPoint={null} />)
+    await waitFor(()=> expect(container.querySelector(".matsya-click-pin")).toBeNull(), {timeout:5000})
+  })
   it("renders a live sim with a 144-cell grid without throwing", async()=>{
     // jsdom has no 2D canvas: hand Leaflet's Canvas renderer a no-op
     // context so vector redraws stay silent (production uses real canvas).

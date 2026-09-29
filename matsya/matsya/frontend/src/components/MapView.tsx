@@ -28,7 +28,7 @@ const BASEMAP_TILES: Record<string, { url: string, attr: string }> = {
   }
 }
 
-export default function MapView({ simulation, layers, time, onPointSelect, onWaterbodySelect, onCellSelect, route, floodNonce }: any) {
+export default function MapView({ simulation, layers, time, selectedPoint, onPointSelect, onWaterbodySelect, onCellSelect, route, floodNonce }: any) {
   const divRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const layerRefs = useRef<any>({})
@@ -38,6 +38,35 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
   // Without this the probe keeps reporting the frame from first render.
   const timeRef = useRef(time)
   useEffect(()=>{ timeRef.current = time }, [time])
+  // Latest clicked point for the pin, readable from the once-registered init.
+  const selectedPointRef = useRef(selectedPoint)
+  selectedPointRef.current = selectedPoint
+  // One replaceable pin at the clicked point. Markers live in the marker
+  // pane above every overlay, and interactive:false keeps the pin itself
+  // from swallowing the next click.
+  const syncClickPin = (map: any, pt: any) => {
+    try {
+      const L = (window as any).L
+      if (!L || !map) return
+      if (layerRefs.current.clickPin) {
+        try { map.removeLayer(layerRefs.current.clickPin) } catch {}
+        layerRefs.current.clickPin = null
+      }
+      const lat = Number(pt?.lat), lon = Number(pt?.lon)
+      if (!isFinite(lat) || !isFinite(lon)) return
+      const pin = (L as any).marker([lat, lon], {
+        interactive: false, keyboard: false,
+        icon: (L as any).divIcon({
+          className: "matsya-click-pin-wrap",
+          html: `<div class="matsya-click-pin" aria-hidden="true"><svg width="30" height="42" viewBox="0 0 30 42"><path d="M15 1C7.3 1 1 7.3 1 15c0 10.5 14 26 14 26s14-15.5 14-26C29 7.3 22.7 1 15 1z" fill="#22d3ee" stroke="#0e7490" stroke-width="1.5"/><circle cx="15" cy="15" r="5" fill="#ffffff"/></svg></div>`,
+          iconSize: [30, 42],
+          iconAnchor: [15, 40],
+        }),
+      })
+      pin.addTo(map)
+      layerRefs.current.clickPin = pin
+    } catch {}
+  }
   // Track current simulation id to detect changes
   const prevSimIdRef = useRef<string | null>(null)
   useEffect(()=>{
@@ -307,6 +336,7 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
           fetch(`/api/simulations/${simulation.id}/point?lat=${lat}&lon=${lon}&time=${timeRef.current ?? 0}`).then(r=>r.json()).then(j=>onPointSelect?.(j)).catch(()=>onPointSelect?.({lat,lon, elevation:15.5, floodDepth:0.42, velocity:0.3}))
         })
         mapRef.current = map
+        syncClickPin(map, selectedPointRef.current)
         // Drains layer: all drains from drains.kml 10257 — for Drainage group
         fetch("/api/layers/drains?limit=10257").then(r=>r.json()).then(g=>{
           try{
@@ -517,6 +547,12 @@ export default function MapView({ simulation, layers, time, onPointSelect, onWat
       } catch {}
     }
   },[layers, time, floodNonce])
+
+  // Click pin follows the selected point (set by map clicks, cleared with
+  // the selection or on simulation change). Never recreates the map.
+  useEffect(()=>{
+    if (mapRef.current) syncClickPin(mapRef.current, selectedPoint)
+  },[selectedPoint, simulation?.id])
 
   // Safe Route overlay — draws selected fastest/safest polylines + destination
   useEffect(() => {

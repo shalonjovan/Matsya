@@ -39,6 +39,20 @@ function liveSim() {
   } as any
 }
 
+describe("MapShell simulation screen", () => {
+  it("does not render the floating GCC radar badge", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: any) => {
+      const u = String(url)
+      if (u.includes("/api/hydro/summary"))
+        return { ok: true, json: async () => ({ drains: 1, waterbodies: 1, rivers: 0, snapped_to_waterbody: 1, to_river: 0, to_sea: 0 }) } as any
+      return { ok: true, json: async () => ({ drains: { features: [] }, waterbodies: { features: [] } }) } as any
+    }))
+    render(<MapShell simulation={sim} />)
+    await screen.findByRole("tab", { name: "Layers" })
+    expect(screen.queryByText(/GCC RADAR FEED/)).toBeNull()
+  })
+})
+
 describe("MapShell live rain grid", () => {
   // jsdom has no 2D canvas: hand Leaflet's Canvas renderer a no-op
   // context so the grid layer's redraws stay silent.
