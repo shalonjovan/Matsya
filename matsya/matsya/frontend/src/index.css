@@ -73,6 +73,17 @@
   animation: radar-pulse 2s infinite;
 }
 
+/* Clicked-point pin marker (Leaflet divIcon): cyan map pin, readable on
+   dark and light basemaps. Pointer-transparent so it never eats clicks. */
+.matsya-click-pin-wrap {
+  background: none;
+  border: none;
+}
+.matsya-click-pin {
+  pointer-events: none;
+  filter: drop-shadow(0 3px 5px rgba(2, 8, 20, 0.55));
+}
+
 /* Leaflet UI Overrides for Dark Operations Center */
 .leaflet-container {
   background: #0B0F17 !important;
@@ -193,5 +204,122 @@
 }
 [data-theme="light"] ::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.6);
+}
+
+/* ---- Classy light surfaces: arbitrary + opacity variants ---- */
+[data-theme="light"] .bg-\[\#070A0F\] {
+  background-color: #f1f5f9;
+}
+[data-theme="light"] .bg-\[\#0B0F17\] {
+  background-color: #ffffff;
+}
+[data-theme="light"] .bg-slate-900\/50,
+[data-theme="light"] .bg-slate-900\/60,
+[data-theme="light"] .bg-slate-900\/70 {
+  background-color: #f8fafc;
+}
+[data-theme="light"] .bg-slate-800,
+[data-theme="light"] .bg-slate-800\/50,
+[data-theme="light"] .bg-slate-800\/60,
+[data-theme="light"] .bg-slate-800\/90 {
+  background-color: #e2e8f0;
+}
+[data-theme="light"] .bg-slate-700 {
+  background-color: #cbd5e1;
+}
+[data-theme="light"] .hover\:bg-slate-700:hover {
+  background-color: #cbd5e1;
+}
+[data-theme="light"] .hover\:bg-slate-800:hover {
+  background-color: #e2e8f0;
+}
+[data-theme="light"] .hover\:text-white:hover {
+  color: #0f172a;
+}
+[data-theme="light"] .hover\:text-slate-200:hover {
+  color: #1e293b;
+}
+/* ---- Light gradient stops: dark card gradients become paper ---- */
+[data-theme="light"] .from-slate-900 {
+  --tw-gradient-from: #ffffff var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+[data-theme="light"] .from-slate-800 {
+  --tw-gradient-from: #f8fafc var(--tw-gradient-from-position);
+  --tw-gradient-to: rgb(248 250 252 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+[data-theme="light"] .via-slate-900\/90 {
+  --tw-gradient-to: rgb(255 255 255 / 0) var(--tw-gradient-to-position);
+  --tw-gradient-stops: var(--tw-gradient-from), #f1f5f9 var(--tw-gradient-via-position), var(--tw-gradient-to);
+}
+[data-theme="light"] .to-slate-900 {
+  --tw-gradient-to: #ffffff var(--tw-gradient-to-position);
+}
+[data-theme="light"] .to-cyan-950\/40 {
+  --tw-gradient-to: rgb(207 250 254 / 0.6) var(--tw-gradient-to-position);
+}
+/* ---- Readable light text: neon accents deepen for contrast ---- */
+[data-theme="light"] .text-slate-100 {
+  color: #0f172a;
+}
+[data-theme="light"] .text-slate-600 {
+  color: #475569;
+}
+[data-theme="light"] .text-cyan-300,
+[data-theme="light"] .text-sky-300 {
+  color: #0369a1;
+}
+[data-theme="light"] .text-cyan-400 {
+  color: #0e7490;
+}
+[data-theme="light"] .text-emerald-300,
+[data-theme="light"] .text-emerald-400 {
+  color: #047857;
+}
+[data-theme="light"] .text-amber-300 {
+  color: #b45309;
+}
+[data-theme="light"] .text-rose-300,
+[data-theme="light"] .text-rose-400 {
+  color: #be123c;
+}
+[data-theme="light"] .text-indigo-400 {
+  color: #4338ca;
+}
+[data-theme="light"] .text-blue-400 {
+  color: #1d4ed8;
+}
+[data-theme="light"] .text-green-400 {
+  color: #15803d;
+}
+/* ---- Light borders, dividers, depth ---- */
+[data-theme="light"] .border-slate-800\/90,
+[data-theme="light"] .border-slate-800\/60,
+[data-theme="light"] .border-slate-800\/50 {
+  border-color: #cbd5e1;
+}
+[data-theme="light"] .divide-slate-800\/80 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #e2e8f0;
+}
+[data-theme="light"] .shadow-2xl {
+  box-shadow: 0 12px 28px -10px rgba(15, 23, 42, 0.22);
+}
+/* ---- Light map chrome: backdrop behind tiles, softer controls ---- */
+[data-theme="light"] .leaflet-container {
+  background: #e2e8f0 !important;
+}
+[data-theme="light"] .leaflet-bar a {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  color: #475569 !important;
+}
+[data-theme="light"] .leaflet-bar a:hover {
+  background-color: #f1f5f9 !important;
+  color: #0369a1 !important;
+}
+[data-theme="light"] .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.85) !important;
+  color: #94a3b8 !important;
 }
 

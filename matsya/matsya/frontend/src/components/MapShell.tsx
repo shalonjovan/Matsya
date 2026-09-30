@@ -8,7 +8,6 @@ import SearchBar from "./SearchBar"
 import AffectedAreas from "./AffectedAreas"
 import InfraImpact from "./InfraImpact"
 import Reports from "./Reports"
-import LiveStatus from "./LiveStatus"
 import HydroLayer from "./HydroLayer"
 import WaterbodyInspector from "./WaterbodyInspector"
 import type { Simulation } from "../types/simulation"
@@ -100,6 +99,7 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
               simulation={simulation}
               layers={layers}
               time={Math.min(time, tmax)}
+              selectedPoint={selectedPoint}
               onPointSelect={handlePointSelect}
               onWaterbodySelect={handleWaterbodySelect}
               onCellSelect={handleCellSelect}
@@ -165,11 +165,6 @@ export default function MapShell({ simulation }: { simulation: Simulation }) {
             </button>
           </div>
           */}
-
-          {/* Floating Live Telemetry Badge */}
-          <div className="absolute top-3 right-3 z-[400] hidden sm:block">
-            <LiveStatus />
-          </div>
 
           {/* Floating Toggle Sidebar Button on Map */}
           <div className="absolute bottom-4 right-4 z-[400]">
