@@ -9,12 +9,28 @@ PRD*.md
 prd(2).md
 prds/
 
+# Problem statement and PPT template documentation
+problem-statement.txt
+*problem-statement*
+problem_statement*
+ppt-template.txt
+*ppt-template*
+*template*.txt
+
+# Presentation, PPT, and documentation files
+ppts-pdfs/
+*.pdf
+*.pptx
+*.ppt
+
 # Large raw data (optional, not pushed)
 c4907fed-934b-4342-a3f4-74226853719d.kml
 assets/CartoDEM_30m_Chennai_EGM96_MSL.tif
 assets/chennai_waterbodies.kml
 assets/drains.kml
 assets/waterbodies/
+assets.zip
+*.zip
 
 # Itzi — external clone and generated outputs (large, not needed in repo)
 test/itzi/itzi/
@@ -24,6 +40,18 @@ test/itzi/run_*.sh
 
 # keep chennai_test inputs but ignore generated grassdb
 test/itzi/chennai_test/grassdb/
+
+# Build & runtime artifacts
+node_modules/
+.next/
+dist/
+*.tsbuildinfo
+venv/
+.venv/
+matsya/matsya/backend/app/data/runs/
+matsya/matsya/backend/data/simulations/
+matsya/matsya/backend/backend/
+matsya/matsya/backend/matsya/
 
 # OS / editor
 .DS_Store

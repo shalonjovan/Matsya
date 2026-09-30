@@ -3,6 +3,7 @@ import SelectSimulation from "./components/SelectSimulation"
 import CreateWizard from "./components/CreateWizard"
 import MapShell from "./components/MapShell"
 import Event2015 from "./components/Event2015"
+import HomePage from "./components/HomePage"
 import type { Simulation } from "./types/simulation"
 import { fetchSimulations } from "./hooks/useSimulation"
 import {
@@ -13,7 +14,8 @@ import {
   Clock,
   Cpu,
   Sun,
-  Moon
+  Moon,
+  Home as HomeIcon
 } from "lucide-react"
 import { ThemeProvider, useTheme } from "./components/ThemeContext"
 
@@ -42,10 +44,17 @@ function getWorldIdFromHash(): string | null {
   return null
 }
 
+/** The landing page owns the bare `#/` route; the simulations list lives at `#/simulations`. */
+function isHomeHash(): boolean {
+  const hash = typeof window !== "undefined" ? window.location.hash : ""
+  return hash === "" || hash === "#/" || hash === "#/home"
+}
+
 function App() {
   const [worldId, setWorldId] = useState<string | null>(() => getWorldIdFromHash())
   const [event2015, setEvent2015] = useState<boolean>(() => typeof window !== "undefined" && window.location.hash === "#/event/2015")
-  const [showSelect, setShowSelect] = useState<boolean>(() => getWorldIdFromHash() === null)
+  const [showHome, setShowHome] = useState<boolean>(() => isHomeHash())
+  const [showSelect, setShowSelect] = useState<boolean>(() => !isHomeHash() && getWorldIdFromHash() === null)
   const [wizardOpen, setWizardOpen] = useState(false)
   const [editSim, setEditSim] = useState<Simulation | null>(null)
   const [currentSim, setCurrentSim] = useState<Simulation | null>(null)
@@ -62,6 +71,18 @@ function App() {
     return () => clearInterval(id)
   }, [])
 
+  // Per-view document title (Home · Simulations · Map · 2015 Replay)
+  useEffect(() => {
+    const title = event2015
+      ? "Chennai Dec 2015 Replay · MATSYA"
+      : showHome
+        ? "MATSYA — Urban Flood Nowcasting Twin for Chennai"
+        : worldId
+          ? `${currentSim?.name ?? "Flood Map"} · MATSYA`
+          : "Simulations · MATSYA"
+    document.title = title
+  }, [event2015, showHome, worldId, currentSim])
+
   useEffect(() => {
     const onHashChange = () => {
       if (typeof window !== "undefined" && window.location.hash === "#/event/2015") {
@@ -69,9 +90,11 @@ function App() {
         return
       }
       setEvent2015(false)
+      const onHome = isHomeHash()
+      setShowHome(onHome)
       const wid = getWorldIdFromHash()
       setWorldId(wid)
-      setShowSelect(wid === null)
+      setShowSelect(!onHome && wid === null)
       if (wid) {
         fetch(`/api/simulations/${wid}`).then(r=>r.json()).then(setCurrentSim).catch(()=>setCurrentSim(null))
       }
@@ -83,15 +106,30 @@ function App() {
     return () => window.removeEventListener("hashchange", onHashChange)
   }, [])
 
-  const navigateSelect = () => {
+  const navigateHome = () => {
     window.location.hash = "#/"
+    setShowHome(true)
+    setWorldId(null)
+    setShowSelect(false)
+  }
+
+  const navigateSelect = () => {
+    window.location.hash = "#/simulations"
+    setShowHome(false)
     setWorldId(null)
     setShowSelect(true)
+  }
+
+  const navigateEvent2015 = () => {
+    window.location.hash = "#/event/2015"
+    setEvent2015(true)
+    setShowHome(false)
   }
 
   const navigateWorld = (id: string) => {
     window.location.hash = `#/world/${id}`
     setWorldId(id)
+    setShowHome(false)
     setShowSelect(false)
     fetch(`/api/simulations/${id}`).then(r=>r.json()).then(setCurrentSim).catch(()=>{})
   }
@@ -136,9 +174,20 @@ function App() {
           {/* Segmented View Switcher */}
           <nav className="flex items-center bg-slate-900/90 p-1 rounded-xl border border-slate-800 font-mono text-xs">
             <button
+              onClick={navigateHome}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition ${
+                showHome
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <HomeIcon className="w-3.5 h-3.5" />
+              <span>Home</span>
+            </button>
+            <button
               onClick={navigateSelect}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition ${
-                showSelect && !worldId
+                showSelect && !worldId && !showHome
                   ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
@@ -149,6 +198,8 @@ function App() {
             </button>
             <button
               onClick={() => {
+                setShowHome(false)
+                setEvent2015(false)
                 if (worldId) {
                   setShowSelect(false)
                 } else {
@@ -158,7 +209,7 @@ function App() {
                 }
               }}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition ${
-                !showSelect
+                !showSelect && !showHome && !event2015
                   ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm"
                   : "text-slate-400 hover:text-white"
               }`}
@@ -167,10 +218,7 @@ function App() {
               <span>Map</span>
             </button>
             <button
-              onClick={() => {
-                window.location.hash = "#/event/2015"
-                setEvent2015(true)
-              }}
+              onClick={navigateEvent2015}
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg font-semibold transition ${
                 event2015
                   ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm"
@@ -216,9 +264,11 @@ function App() {
       </header>
 
       {/* Main Operations Area */}
-      <main className={`flex-1 ${!showSelect && worldId ? "p-0" : "p-4 sm:p-6 max-w-7xl mx-auto w-full"}`}>
+      <main className={`flex-1 ${showHome || (!showSelect && worldId) ? "p-0" : "p-4 sm:p-6 max-w-7xl mx-auto w-full"}`}>
         {event2015 ? (
           <Event2015 />
+        ) : showHome ? (
+          <HomePage onLaunch={navigateSelect} onReplay2015={navigateEvent2015} />
         ) : showSelect || !worldId ? (
           <SelectSimulation onOpen={handleOpen} onCreate={handleCreate} onEdit={handleEdit} />
         ) : currentSim ? (
