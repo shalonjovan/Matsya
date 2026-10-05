@@ -1,0 +1,1034 @@
+{
+ "Adanur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Adanur_IDW.tif",
+  "bounds_32644": [
+   395570.1370000001,
+   1421714.4255000001,
+   397411.1045732013,
+   1423056.2386000007
+  ],
+  "bed_min": 22.8,
+  "bed_mean": 26.17,
+  "valid_frac": 0.61
+ },
+ "Akkamapuram_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Akkamapuram_IDW.tif",
+  "bounds_32644": [
+   365821.17090000026,
+   1433232.6963999998,
+   366548.1429000003,
+   1434750.613936
+  ],
+  "bed_min": 65.29,
+  "bed_mean": 68.27,
+  "valid_frac": 0.644
+ },
+ "Ambattur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ambattur_IDW.tif",
+  "bounds_32644": [
+   405927.76999999955,
+   1448077.5519999992,
+   407859.61010000017,
+   1450426.6695615998
+  ],
+  "bed_min": 10.25,
+  "bed_mean": 15.13,
+  "valid_frac": 0.425
+ },
+ "Anakaputhur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Anakaputhur_IDW.tif",
+  "bounds_32644": [
+   406151.69770000025,
+   1434073.0576999998,
+   406401.32190000097,
+   1434219.7922999999
+  ],
+  "bed_min": 15.65,
+  "bed_mean": 16.81,
+  "valid_frac": 0.706
+ },
+ "Ariyalur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ariyalur_IDW.tif",
+  "bounds_32644": [
+   417221.95413079974,
+   1458367.3409308002,
+   418306.3088691997,
+   1459767.0657724
+  ],
+  "bed_min": 1.54,
+  "bed_mean": 4.12,
+  "valid_frac": 0.545
+ },
+ "Avadam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Avadam_IDW.tif",
+  "bounds_32644": [
+   343950.544004,
+   1443795.2245040007,
+   345531.8812839996,
+   1444962.6234960004
+  ],
+  "bed_min": 102.39,
+  "bed_mean": 106.41,
+  "valid_frac": 0.267
+ },
+ "Ayanambakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ayanambakkam_IDW.tif",
+  "bounds_32644": [
+   405441.08381399995,
+   1444885.5098139998,
+   406479.81518600037,
+   1446847.0981420006
+  ],
+  "bed_min": 7.96,
+  "bed_mean": 14.78,
+  "valid_frac": 0.485
+ },
+ "Ayyaneri_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ayyaneri_IDW.tif",
+  "bounds_32644": [
+   331677.6875904004,
+   1451135.4825903994,
+   332916.8292095998,
+   1452858.4324911986
+  ],
+  "bed_min": 135.25,
+  "bed_mean": 137.16,
+  "valid_frac": 0.616
+ },
+ "Ayyaneri_Poomp_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ayyaneri_Poomp_IDW.tif",
+  "bounds_32644": [
+   404180.45957799983,
+   1451891.0095780008,
+   404998.9314219999,
+   1452989.9140060006
+  ],
+  "bed_min": 18.88,
+  "bed_mean": 20.98,
+  "valid_frac": 0.608
+ },
+ "Chembarambakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Chembarambakkam_IDW.tif",
+  "bounds_32644": [
+   392739.3216840004,
+   1434023.4056839992,
+   400575.90358000214,
+   1441798.038316001
+  ],
+  "bed_min": 18.64,
+  "bed_mean": 22.1,
+  "valid_frac": 0.167
+ },
+ "Cholavaram_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Cholavaram_IDW.tif",
+  "bounds_32644": [
+   404550.63553599984,
+   1459908.6755360009,
+   408784.13895999873,
+   1464027.3164639997
+  ],
+  "bed_min": 11.72,
+  "bed_mean": 15.23,
+  "valid_frac": 0.398
+ },
+ "Cooum_Big_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Cooum_Big_IDW.tif",
+  "bounds_32644": [
+   369964.2070355999,
+   1435969.6410356,
+   372615.2511644004,
+   1440247.2221996011
+  ],
+  "bed_min": 38.96,
+  "bed_mean": 61.86,
+  "valid_frac": 0.481
+ },
+ "Edaiyarpakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Edaiyarpakkam_IDW.tif",
+  "bounds_32644": [
+   366695.86653000006,
+   1434916.8345299996,
+   368644.75809000194,
+   1436224.7804700006
+  ],
+  "bed_min": 64.06,
+  "bed_mean": 66.39,
+  "valid_frac": 0.488
+ },
+ "Ekanapuram_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ekanapuram_IDW.tif",
+  "bounds_32644": [
+   366063.31253600016,
+   1431845.3505359998,
+   366833.41215200105,
+   1432496.1754640008
+  ],
+  "bed_min": 67.38,
+  "bed_mean": 68.6,
+  "valid_frac": 0.346
+ },
+ "Ekanapuram_kali_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ekanapuram_kali_IDW.tif",
+  "bounds_32644": [
+   366356.2109259997,
+   1431641.6411260008,
+   367715.37986199855,
+   1432851.397874
+  ],
+  "bed_min": 68.08,
+  "bed_mean": 69.96,
+  "valid_frac": 0.337
+ },
+ "Ettikuttumeda_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Ettikuttumeda_IDW.tif",
+  "bounds_32644": [
+   370618.9418429998,
+   1434449.511343,
+   371491.7476569996,
+   1435377.954181
+  ],
+  "bed_min": 63.03,
+  "bed_mean": 65.11,
+  "valid_frac": 0.393
+ },
+ "Govindavadi_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Govindavadi_IDW.tif",
+  "bounds_32644": [
+   354157.91539600014,
+   1429387.726396001,
+   355318.84260400035,
+   1430895.5442040008
+  ],
+  "bed_min": 88.28,
+  "bed_mean": 90.64,
+  "valid_frac": 0.664
+ },
+ "Govindavadi_Large_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Govindavadi_Large_IDW.tif",
+  "bounds_32644": [
+   355072.01489399996,
+   1429320.2638939996,
+   356576.06010600034,
+   1431189.8340380003
+  ],
+  "bed_min": 86.66,
+  "bed_mean": 89.14,
+  "valid_frac": 0.723
+ },
+ "Guduavanchery_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Guduavanchery_IDW.tif",
+  "bounds_32644": [
+   397124.775198,
+   1419642.6881979997,
+   397873.6598019997,
+   1420642.1955379993
+  ],
+  "bed_min": 30.46,
+  "bed_mean": 32.05,
+  "valid_frac": 0.322
+ },
+ "Gunagarambakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Gunagarambakkam_IDW.tif",
+  "bounds_32644": [
+   371365.59279799985,
+   1434894.0347980005,
+   372116.17142599943,
+   1435306.2782020005
+  ],
+  "bed_min": 63.69,
+  "bed_mean": 65.56,
+  "valid_frac": 0.559
+ },
+ "Gunduperumbedu_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Gunduperumbedu_IDW.tif",
+  "bounds_32644": [
+   387134.38537220046,
+   1425879.5772722003,
+   388437.4407277997,
+   1427982.1167901994
+  ],
+  "bed_min": 31.06,
+  "bed_mean": 33.6,
+  "valid_frac": 0.559
+ },
+ "Harichandrapuram_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Harichandrapuram_IDW.tif",
+  "bounds_32644": [
+   362550.43773,
+   1446967.81873,
+   363712.1894299996,
+   1447789.22627
+  ],
+  "bed_min": 57.95,
+  "bed_mean": 59.93,
+  "valid_frac": 0.632
+ },
+ "Jagirmangalam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Jagirmangalam_IDW.tif",
+  "bounds_32644": [
+   369961.49494680006,
+   1450559.0739467999,
+   370819.9416531995,
+   1451499.6032067996
+  ],
+  "bed_min": 46.39,
+  "bed_mean": 49.09,
+  "valid_frac": 0.549
+ },
+ "Kadapakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kadapakkam_IDW.tif",
+  "bounds_32644": [
+   418268.47235279984,
+   1458903.4368528004,
+   419408.58824719954,
+   1460075.3488080003
+  ],
+  "bed_min": -3.49,
+  "bed_mean": 2.4,
+  "valid_frac": 0.705
+ },
+ "Kadaperi_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kadaperi_IDW.tif",
+  "bounds_32644": [
+   403938.3124139999,
+   1429780.571614,
+   404708.2944059999,
+   1430281.2593860002
+  ],
+  "bed_min": 21.9,
+  "bed_mean": 24.72,
+  "valid_frac": 0.462
+ },
+ "Kakkalur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kakkalur_IDW.tif",
+  "bounds_32644": [
+   381690.861962,
+   1452277.5825619996,
+   383553.47467000113,
+   1453079.4964380004
+  ],
+  "bed_min": 37.21,
+  "bed_mean": 39.43,
+  "valid_frac": 0.331
+ },
+ "Kannan_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kannan_IDW.tif",
+  "bounds_32644": [
+   370980.8914219996,
+   1433921.8494219994,
+   371230.82457000046,
+   1434143.521578
+  ],
+  "bed_min": 69.69,
+  "bed_mean": 70.64,
+  "valid_frac": 0.421
+ },
+ "Kannan_large_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kannan_large_IDW.tif",
+  "bounds_32644": [
+   371221.000654,
+   1433783.5621540006,
+   372255.83990999754,
+   1434404.9608459994
+  ],
+  "bed_min": 70.72,
+  "bed_mean": 72.07,
+  "valid_frac": 0.417
+ },
+ "Kaveripakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kaveripakkam_IDW.tif",
+  "bounds_32644": [
+   329751.92741799966,
+   1427287.837418001,
+   333498.1435819999,
+   1433720.583102001
+  ],
+  "bed_min": 132.31,
+  "bed_mean": 135.49,
+  "valid_frac": 0.476
+ },
+ "Kilveethi_big_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kilveethi_big_IDW.tif",
+  "bounds_32644": [
+   343848.1751870003,
+   1434599.9652869992,
+   345974.0011130001,
+   1436759.668916999
+  ],
+  "bed_min": 93.88,
+  "bed_mean": 95.62,
+  "valid_frac": 0.439
+ },
+ "Kodakkal_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kodakkal_IDW.tif",
+  "bounds_32644": [
+   325604.7332377996,
+   1442759.0057378004,
+   327217.79086220043,
+   1444577.7121430016
+  ],
+  "bed_min": 147.39,
+  "bed_mean": 149.28,
+  "valid_frac": 0.647
+ },
+ "Kolipathakai_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kolipathakai_IDW.tif",
+  "bounds_32644": [
+   400999.7533750004,
+   1452490.0294750007,
+   402801.1929249997,
+   1454341.708375
+  ],
+  "bed_min": 19.91,
+  "bed_mean": 23.56,
+  "valid_frac": 0.451
+ },
+ "Korattur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Korattur_IDW.tif",
+  "bounds_32644": [
+   409953.08581,
+   1449895.865309999,
+   412399.58767000085,
+   1451963.44769
+  ],
+  "bed_min": 9.29,
+  "bed_mean": 10.85,
+  "valid_frac": 0.473
+ },
+ "Kottavakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Kottavakkam_IDW.tif",
+  "bounds_32644": [
+   360215.59391680034,
+   1430602.2689168002,
+   361370.23568320053,
+   1432331.9314832003
+  ],
+  "bed_min": 69.87,
+  "bed_mean": 79.0,
+  "valid_frac": 0.481
+ },
+ "Madhavaram_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Madhavaram_IDW.tif",
+  "bounds_32644": [
+   413735.3313199998,
+   1451737.4903200006,
+   415100.10867999966,
+   1454505.1065600005
+  ],
+  "bed_min": 3.01,
+  "bed_mean": 5.46,
+  "valid_frac": 0.382
+ },
+ "Mahadevimangalam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Mahadevimangalam_IDW.tif",
+  "bounds_32644": [
+   368088.97950400034,
+   1433496.8395039998,
+   369890.05966399953,
+   1434244.0644959994
+  ],
+  "bed_min": 64.92,
+  "bed_mean": 66.7,
+  "valid_frac": 0.508
+ },
+ "Mahadevimangalam_thangal_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Mahadevimangalam_thangal_IDW.tif",
+  "bounds_32644": [
+   369444.9338260003,
+   1433998.2998260006,
+   370182.3861819976,
+   1434175.0911740002
+  ],
+  "bed_min": 64.41,
+  "bed_mean": 66.29,
+  "valid_frac": 0.517
+ },
+ "Mahendravadi_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Mahendravadi_IDW.tif",
+  "bounds_32644": [
+   338098.2507310001,
+   1435714.3167310008,
+   340468.32776899985,
+   1438235.4743770002
+  ],
+  "bed_min": 104.32,
+  "bed_mean": 108.69,
+  "valid_frac": 0.581
+ },
+ "Manimangalam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Manimangalam_IDW.tif",
+  "bounds_32644": [
+   394261.0466560004,
+   1425257.5646559997,
+   396144.2213439997,
+   1428048.5645919987
+  ],
+  "bed_min": 20.01,
+  "bed_mean": 23.58,
+  "valid_frac": 0.513
+ },
+ "Manivakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Manivakkam_IDW.tif",
+  "bounds_32644": [
+   397482.8765859998,
+   1422949.2825859992,
+   398553.8504140003,
+   1424493.8743219997
+  ],
+  "bed_min": 19.15,
+  "bed_mean": 21.92,
+  "valid_frac": 0.415
+ },
+ "Manuvur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Manuvur_IDW.tif",
+  "bounds_32644": [
+   368282.48622800043,
+   1446084.4022280008,
+   370747.62986000034,
+   1447721.3097720004
+  ],
+  "bed_min": 53.94,
+  "bed_mean": 56.34,
+  "valid_frac": 0.654
+ },
+ "Melakalani_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Melakalani_IDW.tif",
+  "bounds_32644": [
+   392185.5700800001,
+   1428002.16008,
+   395550.66064000217,
+   1429513.1399200007
+  ],
+  "bed_min": 20.51,
+  "bed_mean": 24.14,
+  "valid_frac": 0.149
+ },
+ "Minnal_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Minnal_IDW.tif",
+  "bounds_32644": [
+   342810.31895799964,
+   1446705.3991579995,
+   344413.1361459998,
+   1447832.3098419993
+  ],
+  "bed_min": 109.48,
+  "bed_mean": 111.45,
+  "valid_frac": 0.557
+ },
+ "Mittanemali_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Mittanemali_IDW.tif",
+  "bounds_32644": [
+   399247.0971237996,
+   1454610.8252237996,
+   400097.8747761997,
+   1455844.6222973997
+  ],
+  "bed_min": 22.59,
+  "bed_mean": 26.06,
+  "valid_frac": 0.415
+ },
+ "Nadivaram_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Nadivaram_IDW.tif",
+  "bounds_32644": [
+   398969.6417060002,
+   1417682.6497060005,
+   400847.269294,
+   1419814.6172860006
+  ],
+  "bed_min": 29.31,
+  "bed_mean": 32.23,
+  "valid_frac": 0.348
+ },
+ "Nadukuthagai": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Nadukuthagai.tif",
+  "bounds_32644": [
+   396004.65144400025,
+   1451417.7884440005,
+   396442.165707999,
+   1451787.5395559992
+  ],
+  "bed_min": 30.35,
+  "bed_mean": 31.91,
+  "valid_frac": 0.416
+ },
+ "Neman_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Neman_IDW.tif",
+  "bounds_32644": [
+   389721.3561099999,
+   1442571.327110001,
+   393352.20072999806,
+   1445837.785889999
+  ],
+  "bed_min": 21.64,
+  "bed_mean": 27.89,
+  "valid_frac": 0.512
+ },
+ "Neyveli_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Neyveli_IDW.tif",
+  "bounds_32644": [
+   379582.1192489996,
+   1460360.7842490005,
+   380456.47825099964,
+   1461527.7574190006
+  ],
+  "bed_min": 35.41,
+  "bed_mean": 37.34,
+  "valid_frac": 0.402
+ },
+ "Pakkam_Chitteri_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pakkam_Chitteri_IDW.tif",
+  "bounds_32644": [
+   391053.98034800036,
+   1451623.1843480002,
+   391532.7136519998,
+   1452191.5609399995
+  ],
+  "bed_min": 33.28,
+  "bed_mean": 34.89,
+  "valid_frac": 0.431
+ },
+ "Pakkam_big_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pakkam_big_IDW.tif",
+  "bounds_32644": [
+   392889.9992400004,
+   1451512.8759399992,
+   395442.7618800033,
+   1452543.0100600007
+  ],
+  "bed_min": 29.3,
+  "bed_mean": 31.31,
+  "valid_frac": 0.42
+ },
+ "Pallur_Chitteri_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pallur_Chitteri_IDW.tif",
+  "bounds_32644": [
+   354584.21926199953,
+   1433906.0132620004,
+   356114.75465799787,
+   1434818.517737999
+  ],
+  "bed_min": 84.15,
+  "bed_mean": 86.88,
+  "valid_frac": 0.522
+ },
+ "Pandur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pandur_IDW.tif",
+  "bounds_32644": [
+   373976.10674919956,
+   1452110.9377492007,
+   375743.7746507998,
+   1454005.370679601
+  ],
+  "bed_min": 43.16,
+  "bed_mean": 45.36,
+  "valid_frac": 0.623
+ },
+ "Parandur_Alwarthangal_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Parandur_Alwarthangal_IDW.tif",
+  "bounds_32644": [
+   363154.09742199985,
+   1430123.0144220002,
+   363740.1121219974,
+   1430378.8225779992
+  ],
+  "bed_min": 76.95,
+  "bed_mean": 78.37,
+  "valid_frac": 0.35
+ },
+ "Parandur_Periya_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Parandur_Periya_IDW.tif",
+  "bounds_32644": [
+   361159.8701830001,
+   1429740.1901829995,
+   362950.9143170001,
+   1432223.3908149994
+  ],
+  "bed_min": 17.51,
+  "bed_mean": 75.35,
+  "valid_frac": 0.541
+ },
+ "Paruthipattu_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Paruthipattu_IDW.tif",
+  "bounds_32644": [
+   402562.1918860004,
+   1448662.2418860004,
+   403314.24511400034,
+   1449492.1970420002
+  ],
+  "bed_min": 19.03,
+  "bed_mean": 21.21,
+  "valid_frac": 0.477
+ },
+ "Pattaraipermbudur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pattaraipermbudur_IDW.tif",
+  "bounds_32644": [
+   372419.2142020003,
+   1452586.3082020008,
+   373945.6555659985,
+   1454065.6007979992
+  ],
+  "bed_min": 41.23,
+  "bed_mean": 43.9,
+  "valid_frac": 0.555
+ },
+ "Pillaipakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pillaipakkam_IDW.tif",
+  "bounds_32644": [
+   384753.5983940004,
+   1428808.3233939991,
+   387012.90260599967,
+   1431976.7500179983
+  ],
+  "bed_min": 34.97,
+  "bed_mean": 38.84,
+  "valid_frac": 0.379
+ },
+ "Poondi_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Poondi_IDW.tif",
+  "bounds_32644": [
+   371038.9503079996,
+   1453835.3093080008,
+   379930.10457999835,
+   1461081.0226919996
+  ],
+  "bed_min": 34.09,
+  "bed_mean": 39.73,
+  "valid_frac": 0.563
+ },
+ "Porur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Porur_IDW.tif",
+  "bounds_32644": [
+   406571.50834999967,
+   1439870.9703500008,
+   408244.4639499988,
+   1441309.0246500003
+  ],
+  "bed_min": 8.1,
+  "bed_mean": 14.45,
+  "valid_frac": 0.491
+ },
+ "Pudhupaatu_Chitteri_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pudhupaatu_Chitteri_IDW.tif",
+  "bounds_32644": [
+   354178.92761759955,
+   1427756.1286176008,
+   355434.62158239976,
+   1429131.8889376011
+  ],
+  "bed_min": 92.09,
+  "bed_mean": 93.81,
+  "valid_frac": 0.463
+ },
+ "Pudhupaatu_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pudhupaatu_IDW.tif",
+  "bounds_32644": [
+   374071.10236199957,
+   1432869.1793619993,
+   375501.93576599983,
+   1433706.3336379991
+  ],
+  "bed_min": 77.57,
+  "bed_mean": 79.75,
+  "valid_frac": 0.269
+ },
+ "Pudhupaatu_Komban_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pudhupaatu_Komban_IDW.tif",
+  "bounds_32644": [
+   372600.54759200045,
+   1433745.5405920004,
+   373283.0327440004,
+   1434239.211408
+  ],
+  "bed_min": 67.3,
+  "bed_mean": 69.23,
+  "valid_frac": 0.513
+ },
+ "Pudhupaatu_Periya2_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pudhupaatu_Periya2_IDW.tif",
+  "bounds_32644": [
+   352404.5265840001,
+   1428000.7868839994,
+   354197.0185040003,
+   1429452.1271159996
+  ],
+  "bed_min": 30.62,
+  "bed_mean": 94.78,
+  "valid_frac": 0.54
+ },
+ "Pudhupaatu_Periya_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pudhupaatu_Periya_IDW.tif",
+  "bounds_32644": [
+   374264.20285199984,
+   1434425.213752,
+   374869.73934799974,
+   1435354.0247119996
+  ],
+  "bed_min": 70.24,
+  "bed_mean": 73.48,
+  "valid_frac": 0.521
+ },
+ "Puliyur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Puliyur_IDW.tif",
+  "bounds_32644": [
+   391910.77981520025,
+   1454021.9997151992,
+   392906.8907847996,
+   1455462.5904799982
+  ],
+  "bed_min": 29.46,
+  "bed_mean": 32.4,
+  "valid_frac": 0.399
+ },
+ "Puliyur_Iyyaneri_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Puliyur_Iyyaneri_IDW.tif",
+  "bounds_32644": [
+   357522.2089182002,
+   1431962.7031181997,
+   358674.74158180004,
+   1433294.3145621996
+  ],
+  "bed_min": 79.2,
+  "bed_mean": 82.22,
+  "valid_frac": 0.586
+ },
+ "Pullalur_Periya_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pullalur_Periya_IDW.tif",
+  "bounds_32644": [
+   358634.44675299997,
+   1432421.6592529996,
+   359910.40374699974,
+   1433885.7055249992
+  ],
+  "bed_min": 75.54,
+  "bed_mean": 79.43,
+  "valid_frac": 0.724
+ },
+ "Pullarambakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Pullarambakkam_IDW.tif",
+  "bounds_32644": [
+   380414.2968143999,
+   1452576.1528143997,
+   380975.1239855996,
+   1453315.7296815992
+  ],
+  "bed_min": 39.76,
+  "bed_mean": 41.72,
+  "valid_frac": 0.157
+ },
+ "Putheri_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Putheri_IDW.tif",
+  "bounds_32644": [
+   357721.1710202,
+   1430723.5630202,
+   358505.2848798004,
+   1431551.4123142003
+  ],
+  "bed_min": 83.84,
+  "bed_mean": 84.79,
+  "valid_frac": 0.255
+ },
+ "Redhills_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Redhills_IDW.tif",
+  "bounds_32644": [
+   405925.72999999963,
+   1452048.590000001,
+   412637.4699999996,
+   1458894.0300000007
+  ],
+  "bed_min": 7.09,
+  "bed_mean": 10.83,
+  "valid_frac": 0.458
+ },
+ "Sadayankuppam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Sadayankuppam_IDW.tif",
+  "bounds_32644": [
+   422391.7396000002,
+   1457706.6455999997,
+   423270.4404000003,
+   1458809.3976
+  ],
+  "bed_min": 0.34,
+  "bed_mean": 2.12,
+  "valid_frac": 0.534
+ },
+ "Sekkadu_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Sekkadu_IDW.tif",
+  "bounds_32644": [
+   399335.16864000016,
+   1448468.4586399994,
+   400334.83135999984,
+   1450316.4407199987
+  ],
+  "bed_min": 22.82,
+  "bed_mean": 24.31,
+  "valid_frac": 0.506
+ },
+ "Sirugavur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Sirugavur_IDW.tif",
+  "bounds_32644": [
+   414929.313228,
+   1459827.0752279994,
+   415231.4027719999,
+   1460610.582371999
+  ],
+  "bed_min": 3.67,
+  "bed_mean": 6.39,
+  "valid_frac": 0.106
+ },
+ "Siruvakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Siruvakkam_IDW.tif",
+  "bounds_32644": [
+   412517.54142399976,
+   1468804.8764240006,
+   413460.0845760004,
+   1469871.3395920014
+  ],
+  "bed_min": 7.38,
+  "bed_mean": 9.83,
+  "valid_frac": 0.294
+ },
+ "Sriperumbudur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Sriperumbudur_IDW.tif",
+  "bounds_32644": [
+   383002.0633080002,
+   1432505.0553080009,
+   385241.3306920001,
+   1435538.3258680005
+  ],
+  "bed_min": 40.52,
+  "bed_mean": 44.04,
+  "valid_frac": 0.544
+ },
+ "Tambaram_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Tambaram_IDW.tif",
+  "bounds_32644": [
+   403055.42414000025,
+   1428318.9121400001,
+   403339.48586,
+   1428923.2506199996
+  ],
+  "bed_min": 21.69,
+  "bed_mean": 23.19,
+  "valid_frac": 0.581
+ },
+ "Tambaram_Pudu_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Tambaram_Pudu_IDW.tif",
+  "bounds_32644": [
+   402429.4370889997,
+   1429388.9202889996,
+   402633.1040110002,
+   1429967.4641750008
+  ],
+  "bed_min": 12.44,
+  "bed_mean": 14.78,
+  "valid_frac": 0.663
+ },
+ "Thandurai_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Thandurai_IDW.tif",
+  "bounds_32644": [
+   397228.12252040015,
+   1449728.0402204,
+   398127.09387960023,
+   1450995.9121772004
+  ],
+  "bed_min": 25.25,
+  "bed_mean": 26.41,
+  "valid_frac": 0.268
+ },
+ "Thenmamapakka_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Thenmamapakka_IDW.tif",
+  "bounds_32644": [
+   344986.76040980034,
+   1427990.3035097998,
+   345843.4184902003,
+   1428918.6341785998
+  ],
+  "bed_min": 100.23,
+  "bed_mean": 105.89,
+  "valid_frac": 0.626
+ },
+ "Tiruninravur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Tiruninravur_IDW.tif",
+  "bounds_32644": [
+   391819.589412,
+   1448017.0174119994,
+   394786.7045879997,
+   1451066.8808199991
+  ],
+  "bed_min": 27.33,
+  "bed_mean": 30.49,
+  "valid_frac": 0.403
+ },
+ "Uveri_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Uveri_IDW.tif",
+  "bounds_32644": [
+   356890.2966420003,
+   1429191.7534420001,
+   357489.3800939994,
+   1429698.0495579992
+  ],
+  "bed_min": 84.53,
+  "bed_mean": 86.34,
+  "valid_frac": 0.772
+ },
+ "Valattur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Valattur_IDW.tif",
+  "bounds_32644": [
+   362998.78049000003,
+   1432724.7944899995,
+   364309.4375300008,
+   1434030.2505100004
+  ],
+  "bed_min": 73.8,
+  "bed_mean": 76.17,
+  "valid_frac": 0.758
+ },
+ "Veliyur_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Veliyur_IDW.tif",
+  "bounds_32644": [
+   358164.9101500004,
+   1429522.4451499998,
+   358585.00885000016,
+   1430265.5679499994
+  ],
+  "bed_min": 80.84,
+  "bed_mean": 82.93,
+  "valid_frac": 0.526
+ },
+ "Veliyur_Periya_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Veliyur_Periya_IDW.tif",
+  "bounds_32644": [
+   356867.3670559998,
+   1427632.2612559998,
+   358978.2647839991,
+   1429120.5627439993
+  ],
+  "bed_min": 86.42,
+  "bed_mean": 87.97,
+  "valid_frac": 0.537
+ },
+ "Vellivoyal_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Vellivoyal_IDW.tif",
+  "bounds_32644": [
+   418646.8859224,
+   1462123.720922401,
+   419206.1528776002,
+   1462943.6820360012
+  ],
+  "bed_min": -2.35,
+  "bed_mean": 0.49,
+  "valid_frac": 0.373
+ },
+ "Vilingimbakkam_IDW": {
+  "path": "/home/cac/Storage/coding/projects/matsya/assets/waterbodies/enrich/bathy/Vilingimbakkam_IDW.tif",
+  "bounds_32644": [
+   400552.5986239999,
+   1449739.8126239995,
+   401641.86940800154,
+   1450437.2793760006
+  ],
+  "bed_min": 21.84,
+  "bed_mean": 23.56,
+  "valid_frac": 0.52
+ }
+}

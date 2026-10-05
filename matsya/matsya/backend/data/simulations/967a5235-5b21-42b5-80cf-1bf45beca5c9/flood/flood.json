@@ -1,0 +1,36 @@
+{
+  "maxDepth": 5.0,
+  "floodedArea": 26.5518,
+  "meanDepth": 2.9234559535980225,
+  "width": 180,
+  "height": 180,
+  "steps": 73,
+  "bbox": [
+    80.13968,
+    13.01594,
+    80.28968,
+    13.14147
+  ],
+  "mass_error": 0.12112415493090768,
+  "wbCount": 20,
+  "wbObserved": 8,
+  "surchargedDrains": 30,
+  "swmmCoupled": false,
+  "swmmFloodedNodes": 0,
+  "swmmFloodVolumeM3": 0.0,
+  "swmmNodes": [],
+  "spillVolumeM3": 53686252.9,
+  "overtoppedLakes": 20,
+  "riverSpillVolumeM3": 5642357.5,
+  "overtoppedRivers": [
+    "R730"
+  ],
+  "riverAssumed": 2,
+  "riverCount": 10,
+  "totalRainMm": 4136.361951125956,
+  "zones": [],
+  "initialFillPct": 100.0,
+  "areaKm2": 225.69254667910033,
+  "minutesPerFrame": 26.301369863013697,
+  "floodVersion": 2
+}
