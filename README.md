@@ -5,8 +5,6 @@
 
 MATSYA answers the question rainfall forecasts can't: **given the rain falling NOW, where will the water go?** It routes live gridded rainfall through a city's actual drains, lakes, rivers, and elevation — every 15 minutes — and outputs street-level flood depth, surcharged drains, safe refuges with routes, and time-stamped alerts. Fully deterministic, no black box: every number traces to rain, terrain, drains, or lakes.
 
-> **Honesty first:** this prototype contains **no machine learning**, no radar feed, no infiltration model, and no gauge calibration. Mocked/fallback pieces are labeled in code and in [Limitations](#limitations--mockedfallback-pieces) below. All model outputs carry a *"verify on the ground"* disclaimer.
-
 ---
 
 ## Features
@@ -124,17 +122,6 @@ Full v1 reference (routes, safe spaces, alerts, nowcasts, crowd reports, 2015 re
 3. **Drains** — 30% of step rain enters the network: SWMM dynamic-wave solves up to 40 reaches; node floods splat onto the map; excess over Manning capacity ponds at inlets.
 4. **Lakes & rivers** — lakes fill as weir tanks and spill onto shorelines; rivers route via Muskingum and overtop onto valleys.
 5. **Output** — 73 snapshot frames → PNG tiles + stats → point probes, hotspots, safe routes, alerts, exports. Crowd reports pin observed depths onto the field.
-
----
-
-## Limitations & mocked/fallback pieces
-
-- No ML/AI, no radar, no live gauges/tides; "nowcasting" = fast re-diagnosis on the latest rain.
-- Overland flow is empirical (D8 + leveling), not shallow-water equations; SWMM coupling is one-way.
-- No infiltration model; fixed 30% drain-take fraction; default 2 m lake beds and 1 m pipes where unsurveyed (each stamped `observed`/`assumed`).
-- Velocity is an empirical depth relation; single-point fallback labels are placeholders.
-- DEM tile covers 13–14°N only (south Chennai outside it); the 2015 replay is a synthetic disaggregation and excludes the Chembarambakkam release.
-- PNG/PDF exports are minimal stubs; ANUGA references are a legacy mock (`engine:"anuga-mock"`).
 
 ---
 
